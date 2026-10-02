@@ -32,9 +32,18 @@ go run . -addr :7777
 
 Players open **Multiplayer**, enter `your-host:7777`, and then create or join a room. *Host on this PC* does the same thing on the local machine (port 7777, all interfaces). The lobby shows your LAN IPs so friends know where to connect.
 
-### Exporting the game
+### Building the standalone game (UNO.exe)
 
-Export the Godot project as usual, then put `uno-server.exe` (or `uno-server`) **next to the exported executable**. The client looks for it there, in `res://bin/`, and in `../server/`.
+```powershell
+.\export.ps1 -Godot "C:\path\to\Godot_v4.6.2-stable_win64.exe"
+```
+
+This produces `build\UNO.exe`, `build\UNO.pck` and `build\uno-server.exe`. Double-click `UNO.exe` to play, and zip the `build` folder to share it.
+
+- With Godot export templates installed (Editor → Manage Export Templates), the script does a proper, slimmer release export.
+- Without them, it uses the Godot binary as the runtime.
+
+When exporting manually, keep `uno-server.exe` **next to the game executable**. The client looks for it there, in `res://bin/`, and in `../server/`.
 
 ## How it fits together
 
