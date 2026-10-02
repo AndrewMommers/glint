@@ -1,0 +1,16 @@
+# Godot
+client/.godot/
+client/export/
+*.import
+!client/icon.svg.import
+
+# Built server binaries
+client/bin/
+server/uno-server
+server/uno-server.exe
+*.exe
+
+# Misc
+*.log
+.DS_Store
+Thumbs.db
