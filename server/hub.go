@@ -11,13 +11,14 @@ import (
 
 // Hub tracks all rooms on the server.
 type Hub struct {
-	mu      sync.Mutex
-	rooms   map[string]*Room
-	info    map[string]roomInfo // public lobbies, maintained by the rooms themselves
-	rng     *rand.Rand
-	nextID  atomic.Int64
-	clients atomic.Int64
-	lastAct atomic.Int64 // unix seconds of the last disconnect / connect
+	mu       sync.Mutex
+	rooms    map[string]*Room
+	info     map[string]roomInfo // public lobbies, maintained by the rooms themselves
+	rng      *rand.Rand
+	nextID   atomic.Int64
+	clients  atomic.Int64
+	lastAct  atomic.Int64 // unix seconds of the last disconnect / connect
+	accounts *Accounts    // nil when accounts are disabled
 }
 
 func NewHub() *Hub {

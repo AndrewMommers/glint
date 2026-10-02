@@ -48,6 +48,10 @@ func _open() -> void:
 	_started_at = Time.get_ticks_msec() / 1000.0
 
 
+func connected_to(host: String, port: int) -> bool:
+	return _state != "idle" and _host == host and _port == port
+
+
 func close() -> void:
 	if _state != "idle":
 		_tcp.disconnect_from_host()
@@ -148,14 +152,16 @@ func find_server_binary() -> String:
 
 ## Starts a server on this machine. lan=true listens on all interfaces so
 ## friends can join. Returns an error message or "".
-func start_local_server(port: int, lan: bool) -> String:
+func start_local_server(port: int, lan: bool, accounts: bool = true) -> String:
 	if _server_pids.has(port) and OS.is_process_running(_server_pids[port]):
 		return ""
 	var path := find_server_binary()
 	if path == "":
 		return "Server binary not found. Build it with:  go build -o client/bin/uno-server.exe ./server"
 	var addr := ("0.0.0.0:%d" if lan else "127.0.0.1:%d") % port
-	var pid := OS.create_process(path, ["-addr", addr, "-idle-exit", "30s"])
+	var data_dir := OS.get_user_data_dir().path_join("server-data")
+	var args := ["-addr", addr, "-idle-exit", "30s", "-data", data_dir, "-accounts=%s" % ("true" if accounts else "false")]
+	var pid := OS.create_process(path, args)
 	if pid <= 0:
 		return "Couldn't start the local server"
 	_server_pids[port] = pid

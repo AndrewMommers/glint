@@ -83,6 +83,17 @@ static func make_theme() -> Theme:
 	t.set_stylebox("grabber_highlight", "VScrollBar", grab_hl)
 	t.set_stylebox("grabber_pressed", "VScrollBar", grab_hl)
 	t.set_stylebox("scroll", "VScrollBar", track)
+	var rail := flat(Color(1, 1, 1, 0.12), 6)
+	rail.content_margin_top = 4
+	rail.content_margin_bottom = 4
+	t.set_stylebox("slider", "HSlider", rail)
+	var fill := flat(ACCENT, 6)
+	fill.content_margin_top = 4
+	fill.content_margin_bottom = 4
+	t.set_stylebox("grabber_area", "HSlider", fill)
+	t.set_stylebox("grabber_area_highlight", "HSlider", flat(ACCENT.lightened(0.15), 6))
+	t.set_icon("grabber", "HSlider", _knob(Color.WHITE))
+	t.set_icon("grabber_highlight", "HSlider", _knob(Color(1, 0.95, 1)))
 	t.set_stylebox("panel", "TooltipPanel", flat(Color(0.08, 0.08, 0.14, 0.95), 10, rim, 1))
 	t.set_color("font_color", "TooltipLabel", TEXT)
 	return t
@@ -286,3 +297,45 @@ class Switch extends Control:
 		draw_style_box(sb, r)
 		var x := lerpf(13.0, r.size.x - 13.0, knob)
 		draw_circle(Vector2(x, 13), 9.5, Color.WHITE)
+
+
+
+static func _knob(c: Color) -> ImageTexture:
+	var s := 22
+	var img := Image.create(s, s, false, Image.FORMAT_RGBA8)
+	var r := s * 0.5
+	for y in s:
+		for x in s:
+			var d := Vector2(x + 0.5 - r, y + 0.5 - r).length()
+			var a := clampf(r - 1.5 - d, 0.0, 1.0)
+			var shadow := clampf(r - d, 0.0, 1.0) * 0.35
+			var col := c if a > 0 else Color(0, 0, 0, shadow)
+			col.a = maxf(a, shadow)
+			img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+## A labelled 0-100% volume slider. cb(value 0..1).
+static func slider(title: String, value: float, cb: Callable) -> HBoxContainer:
+	var row := hbox(14)
+	var l := label(title, 16, 600)
+	l.custom_minimum_size = Vector2(150, 0)
+	row.add_child(l)
+	var s := HSlider.new()
+	s.min_value = 0
+	s.max_value = 100
+	s.step = 1
+	s.value = value * 100
+	s.focus_mode = Control.FOCUS_NONE
+	s.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	s.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	s.custom_minimum_size = Vector2(240, 22)
+	row.add_child(s)
+	var pct := label("%d%%" % int(value * 100), 15, 700, MUTED)
+	pct.custom_minimum_size = Vector2(52, 0)
+	pct.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(pct)
+	s.value_changed.connect(func(v: float) -> void:
+		pct.text = "%d%%" % int(v)
+		cb.call(v / 100.0))
+	return row

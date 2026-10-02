@@ -1,6 +1,10 @@
 package main
 
-import "github.com/AndrewMommers/uno-glass/server/uno"
+import (
+	"encoding/json"
+
+	"github.com/AndrewMommers/uno-glass/server/uno"
+)
 
 // Wire protocol: newline-delimited JSON objects over TCP. Every message has
 // a "t" field naming its type.
@@ -23,18 +27,24 @@ import "github.com/AndrewMommers/uno-glass/server/uno"
 // Server -> client: welcome, state, rooms, error, emote, left, pong.
 
 type inMsg struct {
-	T          string       `json:"t"`
-	Name       string       `json:"name"`
-	Code       string       `json:"code"`
-	Bots       int          `json:"bots"`
-	Difficulty string       `json:"difficulty"`
-	Settings   *settingsMsg `json:"settings"`
-	Card       int          `json:"card"`
-	Color      string       `json:"color"`
-	Target     string       `json:"target"`
-	Uno        bool         `json:"uno"`
-	Text       string       `json:"text"`
-	Profile    *profile     `json:"profile"`
+	T          string          `json:"t"`
+	Name       string          `json:"name"`
+	Code       string          `json:"code"`
+	Bots       int             `json:"bots"`
+	Difficulty string          `json:"difficulty"`
+	Settings   *settingsMsg    `json:"settings"`
+	Card       int             `json:"card"`
+	Color      string          `json:"color"`
+	Target     string          `json:"target"`
+	Uno        bool            `json:"uno"`
+	Text       string          `json:"text"`
+	Profile    *profile        `json:"profile"`
+	Username   string          `json:"username"`
+	Password   string          `json:"password"`
+	Token      string          `json:"token"`
+	XP         int             `json:"xp"`
+	Level      int             `json:"level"`
+	Data       json.RawMessage `json:"data"`
 }
 
 // profile is the cosmetic identity a player shows to others.

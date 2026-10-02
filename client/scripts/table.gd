@@ -4,6 +4,7 @@ extends Control
 ## animations derived from the events attached to each state.
 
 signal leave_requested
+signal options_requested
 
 ## Optional: func(st, body: VBoxContainer, buttons: HBoxContainer) to extend
 ## the end-of-round panel (XP, campaign progress, …).
@@ -52,6 +53,7 @@ var turn_pill := Label.new()
 var _prev_turn := ""
 var hint_pill := Label.new()
 var _hint_text := ""
+var _last_tick := -1
 
 
 func _ready() -> void:
@@ -157,6 +159,10 @@ func _build_hud() -> void:
 	emote_btn.tooltip_text = "Reactions"
 	emote_btn.custom_minimum_size = Vector2(46, 40)
 	row.add_child(emote_btn)
+	var opt_btn := UI.button("⚙", func() -> void: options_requested.emit())
+	opt_btn.tooltip_text = "Options (Esc)"
+	opt_btn.custom_minimum_size = Vector2(46, 40)
+	row.add_child(opt_btn)
 	var rules_btn := UI.button("Rules", _show_rules)
 	rules_btn.custom_minimum_size = Vector2(0, 40)
 	row.add_child(rules_btn)
@@ -228,6 +234,8 @@ func _build_hud() -> void:
 
 
 func _key_hint(b: Button, key: String) -> void:
+	if not Settings.v("key_hints"):
+		return
 	var k := UI.label(key, 12, 800, Color(1, 1, 1, 0.75))
 	k.add_theme_stylebox_override("normal", _pill(Color(0, 0, 0, 0.28)))
 	k.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -487,6 +495,7 @@ var _last_round := ""
 
 
 func _reset_round() -> void:
+	Audio.play("shuffle")
 	for v in hand_views.values():
 		v.queue_free()
 	hand_views.clear()
@@ -610,6 +619,7 @@ func _sync_controls() -> void:
 	color_chip.set_color(st.get("color", ""), col)
 	turn_pill.visible = my_turn
 	if my_turn and _prev_turn != me:
+		Audio.play("turn", -3.0, 0.0)
 		turn_pill.scale = Vector2(0.6, 0.6)
 		turn_pill.create_tween().tween_property(turn_pill, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_prev_turn = st.get("turn", "")
@@ -658,6 +668,10 @@ func _process(delta: float) -> void:
 		var turn: String = st.get("turn", "")
 		if turn == me:
 			my_panel.avatar.progress = frac
+			var secs := int(ceil(time_left))
+			if secs <= 5 and secs != _last_tick and Settings.v("timer_ticks"):
+				_last_tick = secs
+				Audio.play("tick", -2.0 if secs > 2 else 1.0, 0.0)
 		elif seats.has(turn):
 			seats[turn].avatar.progress = frac
 
@@ -695,16 +709,16 @@ func _process_events(events: Array) -> void:
 				big = "REVERSE"
 				ring.spin()
 			"draw2", "wild4":
-				text = "%s draws %d" % [_name(tid), e.get("count", 0)]
+				text = "%s drew %d" % [_name(tid), e.get("count", 0)]
 				big = "+2" if kind == "draw2" else "+4"
 				_animate_draw(tid, e.get("count", 0))
 				if tid == me:
 					_shake(10.0 if kind == "wild4" else 6.0)
 			"stack":
-				text = "Stack is now +%d — %s's move" % [e.get("count", 0), _name(tid)]
+				text = "Stack is now +%d — %s" % [e.get("count", 0), "your move" if tid == me else _name(tid) + " to move"]
 				big = "+%d" % e.get("count", 0)
 			"penalty":
-				text = "%s takes %d cards" % [_name(pid), e.get("count", 0)]
+				text = "%s took %d cards" % [_name(pid), e.get("count", 0)]
 				big = "+%d" % e.get("count", 0)
 				_animate_draw(pid, e.get("count", 0))
 			"swap":
@@ -726,10 +740,36 @@ func _process_events(events: Array) -> void:
 				_confetti(pid == me)
 				text = "%s won the round!" % _name(pid)
 				big = "YOU WIN!" if pid == me else "%s WINS" % _name(pid).to_upper()
+		_event_sound(kind, pid, tid)
 		if text != "":
 			_log(text)
 		if big != "":
 			_banner(big)
+
+
+func _event_sound(kind: String, pid: String, tid: String) -> void:
+	match kind:
+		"play", "jumpin":
+			Audio.play("card_play")
+		"draw":
+			Audio.play("card_draw")
+		"skip":
+			Audio.play("skip")
+		"reverse", "swap", "rotate":
+			Audio.play("reverse")
+		"draw2", "stack", "penalty":
+			Audio.play("plus2", 0.0 if tid == me or pid == me else -4.0)
+		"wild4":
+			Audio.play("plus4", 0.0 if tid == me else -3.0)
+		"uno":
+			Audio.play("uno")
+		"catch":
+			Audio.play("catch")
+		"timeout":
+			Audio.play("error")
+		"win":
+			Audio.duck(2.5)
+			Audio.play("win" if pid == me else "lose", 0.0, 0.0)
 
 
 func _card_name(c: Dictionary) -> String:
@@ -841,6 +881,7 @@ func toast(text: String, error: bool = false) -> void:
 
 
 func show_emote(pid: String, text: String) -> void:
+	Audio.play("pop")
 	if pid == me:
 		my_panel.show_emote(text)
 	elif seats.has(pid):
@@ -848,6 +889,8 @@ func show_emote(pid: String, text: String) -> void:
 
 
 func _shake(strength: float) -> void:
+	if Settings.v("reduce_motion"):
+		return
 	var tw := create_tween()
 	for i in 6:
 		var off := Vector2(randf_range(-1, 1), randf_range(-1, 1)) * strength * (1.0 - i / 6.0)
@@ -856,6 +899,8 @@ func _shake(strength: float) -> void:
 
 
 func _confetti(big: bool) -> void:
+	if Settings.v("reduce_motion"):
+		return
 	var keys := ["red", "yellow", "green", "blue"]
 	for i in (140 if big else 60):
 		var p := ColorRect.new()
@@ -905,6 +950,8 @@ func _unhandled_key_input(e: InputEvent) -> void:
 	if not (e is InputEventKey and e.pressed and not e.echo) or modal_layer.get_child_count() > 0:
 		return
 	match e.keycode:
+		KEY_ESCAPE:
+			options_requested.emit()
 		KEY_D, KEY_SPACE:
 			_do_draw()
 		KEY_P:

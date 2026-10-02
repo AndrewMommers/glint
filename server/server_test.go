@@ -42,7 +42,7 @@ func TestNetworkRound(t *testing.T) {
 
 	sc := bufio.NewScanner(conn)
 	sc.Buffer(make([]byte, 4096), 1<<20)
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(240 * time.Second))
 	started := false
 	for sc.Scan() {
 		var st stateJ

@@ -15,6 +15,9 @@ run/low_processor_mode=false
 
 Net="*res://scripts/net.gd"
 Profile="*res://scripts/profile.gd"
+Settings="*res://scripts/settings.gd"
+Audio="*res://scripts/audio.gd"
+Online="*res://scripts/online.gd"
 
 [display]
 

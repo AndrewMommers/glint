@@ -22,6 +22,8 @@ var _rooms_box: VBoxContainer
 var _lobby_sig := ""
 var _round_track := {}  # "code/round" -> counters for XP
 var _awarded := {}  # "code/round" -> award result
+var _screen := ""  # which rebuildable screen is showing (menu, account, friends)
+var _account_mode := "login"
 
 # Settings edited before a room exists (quick play / create room).
 var setup := {
@@ -60,6 +62,17 @@ func _ready() -> void:
 	_load_config()
 	_apply_cosmetics()
 	Profile.changed.connect(_apply_cosmetics)
+	Online.notice.connect(func(kind: String, text: String) -> void:
+		if text != "":
+			Audio.play("error" if kind == "error" else "notify")
+			toast(text, kind == "error"))
+	Online.invited.connect(_on_invited)
+	Online.status_changed.connect(_on_online_changed)
+	Online.friends_changed.connect(func() -> void:
+		if _screen == "friends":
+			show_friends()
+		elif _screen == "menu" and not get_viewport().gui_get_focus_owner() is LineEdit:
+			show_menu())
 	Net.connected.connect(_net_connected)
 	Net.disconnected.connect(_net_disconnected)
 	Net.message.connect(_net_message)
@@ -102,6 +115,17 @@ func _debug_args() -> void:
 					show_profile()
 				"rules":
 					show_rules()
+				"options":
+					show_options()
+				"account":
+					show_account()
+				"friends":
+					show_friends()
+		elif a.begins_with("--signin="):
+			# --signin=host:port,user,password
+			var parts := a.get_slice("=", 1).split(",")
+			if parts.size() == 3:
+				Online.sign_in(parts[0], parts[1], parts[2], false)
 		elif a.begins_with("--stage="):
 			_start_stage.call_deferred(int(a.get_slice("=", 1)))
 		elif a.begins_with("--shot="):
@@ -166,6 +190,7 @@ func _name() -> String:
 # ---------------------------------------------------------------- screen helpers
 
 func _clear() -> void:
+	_screen = ""
 	for c in screen_root.get_children():
 		c.queue_free()
 	table = null
@@ -174,7 +199,9 @@ func _clear() -> void:
 
 
 func _decor() -> void:
-	screen_root.add_child(FloatingCards.new())
+	Audio.music("menu")
+	if not Settings.v("reduce_motion"):
+		screen_root.add_child(FloatingCards.new())
 
 
 func _centered(node: Control) -> CenterContainer:
@@ -232,7 +259,7 @@ func _nav(title: String, sub: String, cb: Callable, primary: bool = false) -> Bu
 	var b := Button.new()
 	b.focus_mode = Control.FOCUS_NONE
 	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
-	b.custom_minimum_size = Vector2(0, 74)
+	b.custom_minimum_size = Vector2(0, 66)
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if primary:
 		UI.style_button(b, UI.ACCENT, 18)
@@ -288,6 +315,7 @@ func _xp_bar(width: float) -> VBoxContainer:
 
 func show_menu() -> void:
 	_clear()
+	_screen = "menu"
 	singleplayer = false
 	campaign_stage = -1
 	_decor()
@@ -318,6 +346,15 @@ func show_menu() -> void:
 	pair.add_child(_nav("Customize", "Backs · themes · frames", show_customize))
 	pair.add_child(_nav("Profile", "Stats & unlocks", show_profile))
 	left.add_child(pair)
+	var pair2 := UI.hbox(12)
+	var fr_sub := "Sign in to add friends"
+	if Online.is_signed_in():
+		fr_sub = "%d online" % Online.online_friends().size()
+		if Online.incoming.size() > 0:
+			fr_sub += "  ·  %d request%s" % [Online.incoming.size(), "" if Online.incoming.size() == 1 else "s"]
+	pair2.add_child(_nav("Friends", fr_sub, show_friends))
+	pair2.add_child(_nav("Options", "Audio · display · gameplay", show_options))
+	left.add_child(pair2)
 	var bottom := UI.hbox(12)
 	var how := UI.button("How to Play", show_rules)
 	how.custom_minimum_size = Vector2(0, 42)
@@ -357,6 +394,14 @@ func show_menu() -> void:
 		stats.add_child(_stat_tile(s[0], s[1]))
 	col.add_child(stats)
 
+	if Online.is_signed_in():
+		var acc := UI.button("☁  Signed in as %s" % Online.username, show_account)
+		acc.tooltip_text = "Progress syncs to your account on %s" % Online.addr
+		col.add_child(acc)
+	else:
+		var acc := UI.button("Sign in / create account" if Online.status != "connecting" else "Connecting…", show_account)
+		acc.tooltip_text = "Sync progress and play with friends"
+		col.add_child(acc)
 	var nxt := Profile.next_unlocks(1)
 	if nxt.size() > 0:
 		var u: Dictionary = nxt[0]
@@ -903,7 +948,7 @@ func show_singleplayer() -> void:
 
 
 func _start_singleplayer(bots: int, settings: Dictionary, stage: int) -> void:
-	var err := Net.start_local_server(Net.LOCAL_PORT, false)
+	var err := Net.start_local_server(Net.LOCAL_PORT, false, false)
 	if err != "":
 		toast(err, true)
 		return
@@ -914,7 +959,7 @@ func _start_singleplayer(bots: int, settings: Dictionary, stage: int) -> void:
 	var create := func() -> void:
 		Net.send({"t": "create", "name": _name(), "bots": bots, "settings": s})
 	_connecting("Level %d · %s" % [stage + 1, Cosmetics.STAGES[stage].name] if stage >= 0 else "Shuffling the deck…")
-	if Net.is_online():
+	if Net.is_online() and Net.connected_to("127.0.0.1", Net.LOCAL_PORT):
 		create.call()
 	else:
 		_on_connected = create
@@ -995,11 +1040,12 @@ func _parse_addr() -> Array:
 
 ## Connects to the configured server (if not already) and then runs then.
 func _with_server(then: Callable) -> void:
-	if Net.is_online():
+	var a := _parse_addr()
+	if Net.is_online() and Net.connected_to(a[0], a[1]):
 		then.call()
 		return
+	singleplayer = false
 	_on_connected = then
-	var a := _parse_addr()
 	Net.connect_to(a[0], a[1], 1)
 
 
@@ -1144,6 +1190,8 @@ func show_lobby(st: Dictionary) -> void:
 
 	var row := UI.hbox(12)
 	row.add_child(UI.button("Leave", _leave, false, 120))
+	if Online.is_signed_in() and not singleplayer:
+		row.add_child(UI.button("Invite friends", _invite_dialog, false, 150))
 	row.add_child(UI.spacer(0, 0, true))
 	if is_host:
 		var add := UI.button("+ Add bot", func() -> void: Net.send({"t": "add_bot"}), false, 150)
@@ -1321,7 +1369,10 @@ func _results_hook(st: Dictionary, body: VBoxContainer, buttons: HBoxContainer) 
 	xp_box.add_child(col)
 	body.add_child(xp_box)
 
+	if campaign_stage >= 0 and int(aw.stars) > 0:
+		Audio.play("star")
 	if int(aw.to) > int(aw.from):
+		get_tree().create_timer(1.2).timeout.connect(func() -> void: Audio.play("level_up"))
 		var lu := UI.label("LEVEL UP!  %d → %d" % [aw.from, aw.to], 26, 900, Color("ffd24a"))
 		lu.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		body.add_child(lu)
@@ -1346,10 +1397,385 @@ func _goto_stage(i: int) -> void:
 	Net.send({"t": "leave"})
 
 
+# ---------------------------------------------------------------- options
+
+func show_options() -> void:
+	_clear()
+	_decor()
+	var p := _card(1040)
+	var col := UI.vbox(18)
+	col.add_child(_header("Options", "Changes apply instantly and are saved on this PC.", show_menu))
+	col.add_child(_options_body())
+	p.add_child(col)
+
+
+func _options_body() -> HBoxContainer:
+	var cols := UI.hbox(36)
+	var left := UI.vbox(14)
+	left.custom_minimum_size = Vector2(470, 0)
+	var right := UI.vbox(14)
+	right.custom_minimum_size = Vector2(470, 0)
+	cols.add_child(left)
+	cols.add_child(right)
+	var setv := func(k: String) -> Callable:
+		return func(val: Variant) -> void: Settings.set_value(k, val)
+
+	left.add_child(UI.section("Audio"))
+	left.add_child(UI.slider("Master", Settings.v("master"), setv.call("master")))
+	left.add_child(UI.slider("Music", Settings.v("music"), setv.call("music")))
+	left.add_child(UI.slider("Sound effects", Settings.v("sfx"), func(val: float) -> void:
+		Settings.set_value("sfx", val)
+		if Engine.get_process_frames() % 6 == 0:
+			Audio.play("card_play")))
+	left.add_child(UI.slider("Interface", Settings.v("ui"), setv.call("ui")))
+	left.add_child(UI.toggle("Mute everything", "Silence all audio.", Settings.v("mute"), setv.call("mute")))
+
+	left.add_child(UI.section("Display"))
+	left.add_child(UI.toggle("Fullscreen", "Use the whole screen (F11 isn't bound — toggle it here).", Settings.v("fullscreen"), setv.call("fullscreen")))
+	left.add_child(UI.toggle("V-Sync", "Sync to your monitor's refresh rate to avoid tearing.", Settings.v("vsync"), setv.call("vsync")))
+	var fps := UI.vbox(6)
+	fps.add_child(UI.label("Frame rate limit", 15, 600, UI.MUTED))
+	fps.add_child(UI.segmented([["Unlimited", 0], ["30", 30], ["60", 60], ["120", 120], ["144", 144]], int(Settings.v("max_fps")), setv.call("max_fps")))
+	left.add_child(fps)
+	var scale := UI.vbox(6)
+	scale.add_child(UI.label("Interface size", 15, 600, UI.MUTED))
+	scale.add_child(UI.segmented([["90%", 0.9], ["100%", 1.0], ["110%", 1.1], ["125%", 1.25]], float(Settings.v("ui_scale")), setv.call("ui_scale")))
+	left.add_child(scale)
+
+	right.add_child(UI.section("Gameplay"))
+	right.add_child(UI.toggle("Gameplay hints", "Tips above your hand, like when to call UNO.", Profile.prefs.get("hints", true),
+		func(on: bool) -> void:
+			Profile.prefs.hints = on
+			Profile.save()))
+	right.add_child(UI.toggle("Turn timer ticks", "Tick during the last 5 seconds of your turn.", Settings.v("timer_ticks"), setv.call("timer_ticks")))
+	right.add_child(UI.toggle("Keyboard hints", "Show shortcut keys on the action buttons.", Settings.v("key_hints"), setv.call("key_hints")))
+	right.add_child(UI.toggle("Reduce motion", "No screen shake, confetti or floating menu cards.", Settings.v("reduce_motion"), setv.call("reduce_motion")))
+
+	right.add_child(UI.section("Account & data"))
+	var acct := "Signed in as %s on %s" % [Online.username, Online.addr] if Online.is_signed_in() else "Not signed in — progress is saved on this PC only."
+	var al := UI.label(acct, 14, 500, UI.MUTED)
+	al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	right.add_child(al)
+	var row := UI.hbox(10)
+	row.add_child(UI.button("Account…", func() -> void:
+		_close_dialog()
+		if table == null:
+			show_account()))
+	row.add_child(UI.button("Reset options", func() -> void:
+		Settings.reset_defaults()
+		toast("Options reset")
+		if table == null:
+			show_options()))
+	var reset := UI.button("Reset progress…", _confirm_reset_progress)
+	UI.style_button(reset, Color(UI.DANGER, 0.7))
+	row.add_child(reset)
+	right.add_child(row)
+	return cols
+
+
+func _confirm_reset_progress() -> void:
+	var body := UI.vbox(14)
+	var l := UI.label("This wipes your XP, level, stats, campaign stars and equipped cosmetics on this PC. Your account copy (if signed in) keeps its higher XP.", 15, 500, UI.MUTED)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(420, 0)
+	body.add_child(l)
+	var row := UI.hbox(10)
+	row.add_child(UI.spacer(0, 0, true))
+	row.add_child(UI.button("Cancel", _close_dialog, false, 110))
+	var go := UI.button("Reset everything", func() -> void:
+		Profile.reset()
+		_close_dialog()
+		toast("Progress reset")
+		show_menu(), false, 180)
+	UI.style_button(go, UI.DANGER)
+	row.add_child(go)
+	body.add_child(row)
+	_dialog("Reset progress?", body)
+
+
+# ---------------------------------------------------------------- account
+
+func _on_online_changed() -> void:
+	match _screen:
+		"account":
+			show_account()
+		"friends":
+			show_friends()
+		"menu":
+			if not get_viewport().gui_get_focus_owner() is LineEdit:
+				show_menu()
+
+
+func show_account() -> void:
+	_clear()
+	_decor()
+	_screen = "account"
+	var p := _card(560)
+	var col := UI.vbox(16)
+	col.add_child(_header("Account", "Sync your progress and play with friends.", show_menu))
+	if Online.is_signed_in():
+		var head := UI.hbox(16)
+		var av := _avatar(80)
+		av.letter = Online.username.substr(0, 1).to_upper()
+		av.color = UI.avatar_color(Online.username)
+		head.add_child(av)
+		var who := UI.vbox(4)
+		who.alignment = BoxContainer.ALIGNMENT_CENTER
+		who.add_child(UI.label(Online.username, 26, 800))
+		who.add_child(UI.label("Signed in on %s" % Online.addr, 14, 500, UI.MUTED))
+		who.add_child(UI.label("Level %d  ·  progress syncs automatically" % Profile.level(), 14, 600, UI.ACCENT.lightened(0.4)))
+		head.add_child(who)
+		col.add_child(head)
+		var row := UI.hbox(10)
+		row.add_child(UI.button("Friends", show_friends, true, 140))
+		row.add_child(UI.spacer(0, 0, true))
+		row.add_child(UI.button("Sign out", func() -> void:
+			Online.sign_out()
+			toast("Signed out")
+			show_account(), false, 120))
+		col.add_child(row)
+		p.add_child(col)
+		return
+
+	col.add_child(UI.segmented([["Sign in", "login"], ["Create account", "register"]], _account_mode, func(v: String) -> void:
+		_account_mode = v
+		show_account()))
+	col.add_child(UI.section("Server"))
+	var server := UI.line_edit(Online.addr, "host:port (the multiplayer server)")
+	col.add_child(server)
+	col.add_child(UI.section("Username"))
+	var user := UI.line_edit(Online.username, "3–16 letters, numbers or _", 16)
+	col.add_child(user)
+	col.add_child(UI.section("Password"))
+	var pw := UI.line_edit("", "At least 6 characters", 128)
+	pw.secret = true
+	col.add_child(pw)
+	var pw2: LineEdit
+	if _account_mode == "register":
+		pw2 = UI.line_edit("", "Repeat password", 128)
+		pw2.secret = true
+		col.add_child(pw2)
+	var status := ""
+	if Online.status == "connecting":
+		status = "Connecting to %s…" % Online.addr
+	elif Online.last_error != "":
+		status = Online.last_error
+	if status != "":
+		col.add_child(UI.label(status, 14, 600, UI.DANGER if Online.last_error != "" else UI.MUTED))
+	var submit := func() -> void:
+		if pw2 != null and pw2.text != pw.text:
+			toast("Passwords don't match", true)
+			return
+		if user.text.strip_edges().length() < 3 or pw.text.length() < 6:
+			toast("Enter a username (3+) and password (6+)", true)
+			return
+		Online.sign_in(server.text.strip_edges(), user.text, pw.text, _account_mode == "register")
+		show_account()
+	var go := UI.button("Create account" if _account_mode == "register" else "Sign in", submit, true)
+	go.custom_minimum_size.y = 52
+	col.add_child(go)
+	pw.text_submitted.connect(func(_t: String) -> void: submit.call())
+	var note := UI.label("Accounts live on the server you choose. To be friends, everyone signs in to the same server — e.g. the PC hosting multiplayer, or a dedicated server.", 13, 500, UI.MUTED)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(note)
+	p.add_child(col)
+
+
+# ---------------------------------------------------------------- friends
+
+var _friends_timer: Timer
+
+
+func show_friends() -> void:
+	_clear()
+	_decor()
+	_screen = "friends"
+	var p := _card(780)
+	var col := UI.vbox(16)
+	col.add_child(_header("Friends", "See who's online, join their table or invite them to yours.", show_menu))
+	if not Online.is_signed_in():
+		col.add_child(UI.label("Sign in to add friends and see when they're online.", 16, 500, UI.MUTED))
+		col.add_child(UI.button("Sign in / create account", show_account, true))
+		p.add_child(col)
+		return
+	if _friends_timer == null:
+		_friends_timer = Timer.new()
+		_friends_timer.wait_time = 6.0
+		_friends_timer.timeout.connect(func() -> void:
+			if _screen == "friends":
+				Online.refresh_friends())
+		add_child(_friends_timer)
+	_friends_timer.start()
+
+	var add_row := UI.hbox(10)
+	var name_edit := UI.line_edit("", "Add a friend by username", 16)
+	add_row.add_child(name_edit)
+	var add := func() -> void:
+		if name_edit.text.strip_edges() != "":
+			Online.add_friend(name_edit.text)
+			name_edit.text = ""
+	add_row.add_child(UI.button("Add friend", add, true, 140))
+	name_edit.text_submitted.connect(func(_t: String) -> void: add.call())
+	col.add_child(add_row)
+
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(0, 460)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var list := UI.vbox(10)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
+	col.add_child(scroll)
+
+	if Online.incoming.size() > 0:
+		list.add_child(UI.section("Friend requests"))
+		for n in Online.incoming:
+			var row := _friend_row(n, "Wants to be your friend", Color("ffd24a"))
+			row.add_child(UI.button("Accept", func() -> void: Online.accept(n), true, 100))
+			row.add_child(UI.button("Decline", func() -> void: Online.decline(n), false, 100))
+			list.add_child(_row_panel(row))
+
+	list.add_child(UI.section("Friends  ·  %d online" % Online.online_friends().size()))
+	if Online.friends.is_empty():
+		list.add_child(UI.label("No friends yet — add someone by their username above.", 15, 500, UI.MUTED))
+	for f in Online.friends:
+		var st := "Offline"
+		var dot := Color(1, 1, 1, 0.3)
+		if f.get("online", false):
+			st = "Online"
+			dot = UI.CARD_COLORS.green
+			if f.get("room", "") != "":
+				st = "At table %s" % f.room
+				dot = UI.CARD_COLORS.yellow
+		var row := _friend_row(f.name, "Level %d  ·  %s" % [int(f.get("level", 1)), st], dot)
+		var fname: String = f.name
+		if f.get("room", "") != "":
+			var code: String = f.room
+			row.add_child(UI.button("Join", func() -> void:
+				server_addr = Online.addr
+				_save_config()
+				_join(code), true, 90))
+		var x := UI.button("✕", func() -> void: _confirm_remove_friend(fname))
+		x.custom_minimum_size = Vector2(40, 40)
+		x.tooltip_text = "Remove friend"
+		row.add_child(x)
+		list.add_child(_row_panel(row))
+
+	if Online.outgoing.size() > 0:
+		list.add_child(UI.section("Sent requests"))
+		for n in Online.outgoing:
+			var row := _friend_row(n, "Request pending", Color(1, 1, 1, 0.3))
+			row.add_child(UI.button("Cancel", func() -> void: Online.decline(n), false, 100))
+			list.add_child(_row_panel(row))
+	p.add_child(col)
+
+
+func _friend_row(name: String, sub: String, dot: Color) -> HBoxContainer:
+	var row := UI.hbox(12)
+	var av := SeatView.Avatar.new(44)
+	av.letter = name.substr(0, 1).to_upper()
+	av.color = UI.avatar_color(name)
+	row.add_child(av)
+	var txt := UI.vbox(0)
+	txt.alignment = BoxContainer.ALIGNMENT_CENTER
+	txt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	txt.add_child(UI.label(name, 17, 700))
+	var s := UI.label("●  " + sub, 13, 600, UI.MUTED)
+	s.add_theme_color_override("font_color", dot.lerp(UI.MUTED, 0.35))
+	txt.add_child(s)
+	row.add_child(txt)
+	return row
+
+
+func _row_panel(row: Control) -> PanelContainer:
+	var pc := PanelContainer.new()
+	var sb := UI.flat(Color(1, 1, 1, 0.06), 14, Color(1, 1, 1, 0.12), 1)
+	sb.content_margin_top = 8
+	sb.content_margin_bottom = 8
+	pc.add_theme_stylebox_override("panel", sb)
+	pc.add_child(row)
+	return pc
+
+
+func _confirm_remove_friend(name: String) -> void:
+	var body := UI.vbox(14)
+	var row := UI.hbox(10)
+	row.add_child(UI.spacer(0, 0, true))
+	row.add_child(UI.button("Cancel", _close_dialog, false, 110))
+	var go := UI.button("Remove", func() -> void:
+		Online.remove_friend(name)
+		_close_dialog(), false, 120)
+	UI.style_button(go, UI.DANGER)
+	row.add_child(go)
+	body.add_child(row)
+	_dialog("Remove %s from friends?" % name, body)
+
+
+func _invite_dialog() -> void:
+	Online.refresh_friends()
+	var body := UI.vbox(10)
+	var on := Online.online_friends()
+	if on.is_empty():
+		body.add_child(UI.label("None of your friends are online right now.", 15, 500, UI.MUTED))
+	for f in on:
+		var row := _friend_row(f.name, "At table %s" % f.room if f.get("room", "") != "" else "Online", UI.CARD_COLORS.green)
+		var fname: String = f.name
+		var b := UI.button("Invite", func() -> void: Online.invite(fname), true, 100)
+		row.add_child(b)
+		body.add_child(row)
+	body.add_child(UI.button("Done", _close_dialog))
+	_dialog("Invite friends", body)
+
+
+func _on_invited(from: String, code: String) -> void:
+	Audio.play("notify")
+	toast_action("%s invited you to table %s" % [from, code], "Join", func() -> void:
+		server_addr = Online.addr
+		_save_config()
+		if singleplayer:
+			Net.close()
+			Net.stop_local_servers()
+			singleplayer = false
+			_clear()
+			_join(code)
+		elif table != null or not _last_state.is_empty():
+			_after_left = func() -> void: _join(code)
+			Net.send({"t": "leave"})
+		else:
+			_join(code))
+
+
+## A toast with a button, shown for longer.
+func toast_action(text: String, action: String, cb: Callable) -> void:
+	var p := PanelContainer.new()
+	p.add_theme_stylebox_override("panel", UI.flat(Color(0.1, 0.1, 0.18, 0.95), 16, Color(UI.ACCENT, 0.7), 1))
+	var row := UI.hbox(14)
+	var l := UI.label(text, 16, 600)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(l)
+	row.add_child(UI.button(action, func() -> void:
+		p.queue_free()
+		cb.call(), true, 90))
+	row.add_child(UI.button("✕", p.queue_free))
+	p.add_child(row)
+	toast_root.add_child(p)
+	toast_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	await get_tree().process_frame
+	if not is_instance_valid(p):
+		return
+	p.position = Vector2(size.x - p.size.x - 24, 96)
+	var tw := p.create_tween()
+	tw.tween_interval(12.0)
+	tw.tween_property(p, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(p.queue_free)
+
+
 # ---------------------------------------------------------------- network
 
 func _net_connected() -> void:
-	Net.send({"t": "hello", "name": _name(), "profile": Profile.net_profile()})
+	var hello := {"t": "hello", "name": _name(), "profile": Profile.net_profile()}
+	if Online.is_signed_in():
+		hello.token = Online.token
+	Net.send(hello)
 	if _on_connected.is_valid():
 		var cb := _on_connected
 		_on_connected = Callable()
@@ -1380,6 +1806,8 @@ func _net_message(msg: Dictionary) -> void:
 					_clear()
 					table = Table.new()
 					table.leave_requested.connect(_leave)
+					table.options_requested.connect(func() -> void: _dialog("Options", _options_body()))
+					Audio.music("game")
 					table.results_hook = _results_hook
 					screen_root.add_child(table)
 				table.apply_state(msg)
@@ -1389,6 +1817,7 @@ func _net_message(msg: Dictionary) -> void:
 			if table:
 				table.show_emote(msg.player, msg.text)
 		"error":
+			Audio.play("error")
 			if table:
 				table.toast(msg.msg, true)
 			else:

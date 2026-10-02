@@ -130,3 +130,34 @@ func next_unlocks(count: int) -> Array:
 			if out.size() >= count:
 				return out
 	return out
+
+
+## Everything needed to restore progress elsewhere (account sync).
+func to_dict() -> Dictionary:
+	return {"xp": xp, "stats": stats, "selected": selected, "campaign": campaign, "prefs": prefs}
+
+
+func from_dict(d: Dictionary) -> void:
+	xp = int(d.get("xp", xp))
+	var s = d.get("stats", {})
+	if s is Dictionary:
+		stats.merge(s, true)
+	var sel = d.get("selected", {})
+	if sel is Dictionary:
+		selected.merge(sel, true)
+	var c = d.get("campaign", {})
+	if c is Dictionary:
+		campaign = c
+	var pr = d.get("prefs", {})
+	if pr is Dictionary:
+		prefs.merge(pr, true)
+	save()
+
+
+func reset() -> void:
+	xp = 0
+	for k in stats:
+		stats[k] = 0
+	selected = {"back": "classic", "theme": "aurora", "frame": "none"}
+	campaign = {}
+	save()
