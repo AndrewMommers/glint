@@ -134,7 +134,18 @@ func _build_hud() -> void:
 	top.offset_right = -20
 	top.offset_top = 16
 	var row := UI.hbox(16)
-	row.add_child(_logo(26))
+	var emb := TextureRect.new()
+	emb.texture = preload("res://branding/emblem.svg")
+	emb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	emb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	emb.custom_minimum_size = Vector2(36, 36)
+	row.add_child(emb)
+	var wm := TextureRect.new()
+	wm.texture = preload("res://branding/wordmark.svg")
+	wm.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	wm.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	wm.custom_minimum_size = Vector2(92, 38)
+	row.add_child(wm)
 	var code_chip := Button.new()
 	code_chip.focus_mode = Control.FOCUS_NONE
 	code_chip.tooltip_text = "Copy room code"

@@ -1,3 +1,5 @@
+<p align="center"><img src="branding/png/social-preview-1280x640.png" alt="UNO Glass" width="100%"></p>
+
 # UNO Glass
 
 A modern UNO game with a **Go** authoritative game server and a **Godot 4.6** client with a frosted-glass (glassmorphism) UI.
@@ -117,6 +119,11 @@ client/                 Godot 4.6 project
   scripts/glass_panel.gd + shaders/glass.gdshader   the frosted-glass panel
   shaders/background.gdshader                        animated, themeable aurora background
 ```
+
+## Branding
+
+The logo, app icon, palette, typography, glass recipe and marketing art are all generated from
+[`tools/gen_branding.py`](tools/gen_branding.py). See [`branding/BRAND.md`](branding/BRAND.md) for the guidelines.
 
 ## Development
 

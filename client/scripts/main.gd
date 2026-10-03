@@ -79,6 +79,13 @@ func _ready() -> void:
 	Net.message.connect(_net_message)
 	show_menu()
 	_debug_args()
+	# Branded boot screen on top of the (already built) menu.
+	var skip_loader := false
+	for a in OS.get_cmdline_user_args():
+		if Release.dev_flags() and (a == "--demo" or a.begins_with("--stage=") or a.begins_with("--screen=")):
+			skip_loader = true
+	if not skip_loader:
+		add_child(LoadingScreen.new())
 
 
 func _apply_cosmetics() -> void:
@@ -337,8 +344,20 @@ func show_menu() -> void:
 	# Left: logo + navigation.
 	var left := UI.vbox(12)
 	left.custom_minimum_size = Vector2(440, 0)
-	left.add_child(_logo(112))
-	var tag := "Glass edition  ·  v%s" % Release.version()
+	var wm := TextureRect.new()
+	wm.texture = preload("res://branding/wordmark.svg")
+	wm.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	wm.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT
+	wm.custom_minimum_size = Vector2(430, 176)
+	var shine := ShaderMaterial.new()
+	shine.shader = preload("res://shaders/shimmer.gdshader")
+	shine.set_shader_parameter("strength", 0.4)
+	wm.material = shine
+	var tw := wm.create_tween().set_loops()
+	tw.tween_method(func(v: float) -> void: shine.set_shader_parameter("sweep", v), -0.5, 1.6, 2.2)
+	tw.tween_interval(3.5)
+	left.add_child(wm)
+	var tag := "v%s" % Release.version()
 	if Release.channel() == "beta":
 		tag += "  ·  CLOSED BETA"
 	left.add_child(UI.label(tag, 16, 600, UI.MUTED))
@@ -989,6 +1008,9 @@ func _connecting(text: String) -> void:
 	_clear()
 	var p := _card(440)
 	var col := UI.vbox(16)
+	var spin := LoadingScreen.CardSpinner.new()
+	spin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(spin)
 	var l := UI.label(text, 22, 700)
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(l)
