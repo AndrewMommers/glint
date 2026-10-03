@@ -311,3 +311,17 @@ main { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
   .reveal { opacity: 1; transform: none; }
   html { scroll-behavior: auto; }
 }
+
+/* Download page */
+.dl { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
+.dl-card { max-width: 720px; margin: 70px auto 0; padding: 48px 40px 40px; text-align: center; }
+.dl-card h1 { margin: 0.5rem 0 0.3rem; font-size: clamp(2rem, 5vw, 3rem); }
+.dl-card .lead { margin: 0 auto; }
+.dl-emblem { filter: drop-shadow(0 10px 28px rgba(139, 108, 255, 0.5)); }
+.dl-cta { justify-content: center; }
+.dl-cta .btn[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+.dl-steps .steps { max-width: 980px; margin: 0 auto; }
+.dl-verify { max-width: 720px; margin: 1.6rem auto 0; padding: 16px 22px; }
+.dl-verify summary { cursor: pointer; font-weight: 700; }
+.dl-verify .hash { font-family: ui-monospace, Consolas, monospace; font-size: 0.85rem; word-break: break-all; color: var(--muted); }
+@media (max-width: 600px) { .dl-card { margin-top: 40px; padding: 34px 20px 28px; } }

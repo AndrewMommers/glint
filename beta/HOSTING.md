@@ -71,7 +71,7 @@ beta\feedback.cmd -Log                                 # include the attached ga
 
 ```powershell
 release.cmd -Version 0.9.0-beta.2 -Server yourname.duckdns.org:7777 -Godot C:\path\to\Godot_v4.6.2-stable_win64.exe
-release.cmd ... -Publish     # also uploads the zip as a GitHub pre-release
+release.cmd ... -Publish     # uploads the installer + zip to the website download (add -GitHub to mirror there)
 ```
 
 The script writes the new version to `beta\VERSION`. After you restart

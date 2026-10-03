@@ -1,7 +1,9 @@
 # Builds a closed-beta release of Glint.
 #
 #   .\release.ps1 -Version 0.9.0-beta.1 -Server yourname.duckdns.org:7777 -Godot C:\path\to\Godot_v4.6.2-stable_win64.exe
-#   ... -Publish      also uploads it as a pre-release on GitHub (-BetaRepo, created public if missing)
+#   ... -Publish      uploads it to the website's download bucket (Appwrite Storage) and
+#                     pushes website/release.json, which redeploys the site with the new version
+#   ... -GitHub       with -Publish, also mirrors it as a pre-release on GitHub (-BetaRepo)
 #
 # Produces dist\Glint-<version>-windows.zip containing Glint.exe, Glint.pck,
 # glint-server.exe (singleplayer) and README.txt. The build has the official
@@ -11,13 +13,15 @@ param(
     [Parameter(Mandatory = $true)][string]$Server,
     [Parameter(Mandatory = $true)][string]$Godot,
     [string]$BetaRepo = "AndrewMommers/glint-beta",
-    [switch]$Publish
+    [switch]$Publish,
+    [switch]$GitHub
 )
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { throw "Version must look like 0.9.0-beta.1" }
 if ($Server -notmatch '^[^:\s]+:\d+$') { throw "Server must be host:port, e.g. yourname.duckdns.org:7777" }
-$downloadUrl = "https://github.com/$BetaRepo/releases/latest"
+$website = (Get-Content (Join-Path $root "betappwrite.json") -Raw | ConvertFrom-Json).website
+$downloadUrl = "$website/download/"
 
 # 1. Server binary + TLS certificate (created once, then reused forever).
 $beta = Join-Path $root "beta"
@@ -82,7 +86,7 @@ $body = if (Test-Path $custom) { Get-Content $custom -Raw } else { "Closed beta 
 $body
 
 **Install:** download **``Glint-Setup-$Version.exe``** and run it (no admin needed). Prefer no install? Use ``$name.zip``: unzip and run ``Glint.exe``.
-You need an invite code to create an account. Ignore the "Source code" links. GitHub adds them automatically.
+You need an invite code to create an account. Also available at $downloadUrl
 
 SHA-256: ``$hash``
 "@ | Set-Content $notes -Encoding utf8
@@ -97,14 +101,24 @@ Write-Host "  beta\VERSION = $Version -> restart .\beta\run-server.ps1 so older 
 
 # 4. Publish.
 if ($Publish) {
-    gh repo view $BetaRepo *> $null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Creating $BetaRepo (builds only, no source)..."
-        gh repo create $BetaRepo --public --description "Glint closed beta builds (invite only)" --add-readme | Out-Null
+    if (-not $setup) { throw "publishing needs the installer (install Inno Setup)" }
+    # Git's own bash (not WSL) runs the upload script.
+    $bash = Join-Path (Split-Path (Split-Path (Get-Command git).Source)) "binash.exe"
+    & $bash (Join-Path $root "tools/publish_download.sh") $Version $setup $zip
+    if ($LASTEXITCODE) { throw "upload to Appwrite failed" }
+    git -C $root add website/release.json
+    git -C $root commit -m "Publish Glint $Version downloads" -- website/release.json | Out-Null
+    git -C $root push -q
+    Write-Host "Published: $downloadUrl (the site updates in about a minute)" -ForegroundColor Green
+
+    if ($GitHub) {
+        gh repo view $BetaRepo *> $null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Creating $BetaRepo (builds only, no source)..."
+            gh repo create $BetaRepo --public --description "Glint closed beta builds (invite only)" --add-readme | Out-Null
+        }
+        gh release create "v$Version" $setup $zip --repo $BetaRepo --prerelease --title "Glint $Version (closed beta)" --notes-file $notes
+        # No tag on the source repo: tags there only show "Source code" downloads.
+        Write-Host "Mirrored: https://github.com/$BetaRepo/releases/tag/v$Version" -ForegroundColor Green
     }
-    $assets = @($zip)
-    if ($setup) { $assets = @($setup) + $assets }
-    gh release create "v$Version" @assets --repo $BetaRepo --prerelease --title "Glint $Version (closed beta)" --notes-file $notes
-    # No tag on the source repo: tags there only show "Source code" downloads.
-    Write-Host "Published: https://github.com/$BetaRepo/releases/tag/v$Version" -ForegroundColor Green
 }

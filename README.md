@@ -2,7 +2,7 @@
 
 # Glint
 
-> ### ⬇ [Download Glint (closed beta)](https://github.com/AndrewMommers/glint-beta/releases/latest)
+> ### ⬇ [Download Glint (closed beta)](https://glint.appwrite.network/download/)
 > The installer (`Glint-Setup-….exe`) and the portable zip live in the **glint-beta** repo's Releases.
 > This repo is the source code.
 
@@ -126,7 +126,9 @@ client/                 Godot 4.6 project
 
 ## Website
 
-`website/` is the game's landing page: a static site with no build step, no trackers and no external requests.
+`website/` is the game's landing page at **https://glint.appwrite.network**: a static site with no build step, no trackers and no external requests.
+It's hosted on Appwrite Sites. Every push to `main` that changes `website/` redeploys it (`.github/workflows/deploy-website.yml` runs `tools/deploy_website.sh`).
+Game downloads live in a public Appwrite Storage bucket. `release.cmd ... -Publish` uploads them with `tools/publish_download.sh` and updates `website/release.json`, which `/download/` reads.
 To preview it, run `python -m http.server 8099 --directory website` and open http://localhost:8099.
 The screenshots in `website/assets/shots/` are taken from the game.
 
