@@ -22,4 +22,9 @@ jobs:
       - name: Deploy to Appwrite Sites
         env:
           APPWRITE_SITES_KEY: ${{ secrets.APPWRITE_SITES_KEY }}
-        run: bash tools/deploy_website.sh
+        run: |
+          if [ -z "$APPWRITE_SITES_KEY" ]; then
+            echo "::warning::APPWRITE_SITES_KEY secret not set yet, skipping deploy"
+            exit 0
+          fi
+          bash tools/deploy_website.sh
