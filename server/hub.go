@@ -11,14 +11,43 @@ import (
 
 // Hub tracks all rooms on the server.
 type Hub struct {
-	mu       sync.Mutex
-	rooms    map[string]*Room
-	info     map[string]roomInfo // public lobbies, maintained by the rooms themselves
-	rng      *rand.Rand
-	nextID   atomic.Int64
-	clients  atomic.Int64
-	lastAct  atomic.Int64 // unix seconds of the last disconnect / connect
-	accounts *Accounts    // nil when accounts are disabled
+	mu        sync.Mutex
+	rooms     map[string]*Room
+	info      map[string]roomInfo // public lobbies, maintained by the rooms themselves
+	rng       *rand.Rand
+	nextID    atomic.Int64
+	clients   atomic.Int64
+	lastAct   atomic.Int64 // unix seconds of the last disconnect / connect
+	accounts  *Accounts    // nil when accounts are disabled
+	invites   *Invites     // non-nil when registration needs an invite code
+	minClient string       // oldest client version allowed ("" = any)
+	feedback  *Feedback    // nil when feedback collection is off
+	perIP     map[string]int
+	ipMu      sync.Mutex
+}
+
+const maxConnsPerIP = 12
+
+// admit counts a connection from ip; false means the limit is reached.
+func (h *Hub) admit(ip string) bool {
+	h.ipMu.Lock()
+	defer h.ipMu.Unlock()
+	if h.perIP == nil {
+		h.perIP = map[string]int{}
+	}
+	if h.perIP[ip] >= maxConnsPerIP {
+		return false
+	}
+	h.perIP[ip]++
+	return true
+}
+
+func (h *Hub) release(ip string) {
+	h.ipMu.Lock()
+	defer h.ipMu.Unlock()
+	if h.perIP[ip]--; h.perIP[ip] <= 0 {
+		delete(h.perIP, ip)
+	}
 }
 
 func NewHub() *Hub {

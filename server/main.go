@@ -4,12 +4,15 @@ package main
 
 import (
 	"bufio"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -29,10 +32,11 @@ type Client struct {
 	once sync.Once
 	room *Room // only touched by the client's read goroutine
 
-	user      string // account key when signed in (read goroutine only)
-	token     string
-	fails     int
-	roomCode_ atomic.Value // string; read by the friends list
+	user         string // account key when signed in (read goroutine only)
+	token        string
+	fails        int
+	feedbackSent int
+	roomCode_    atomic.Value // string; read by the friends list
 }
 
 func (c *Client) roomCode() string {
@@ -108,6 +112,12 @@ func cleanName(s string) string {
 }
 
 func (h *Hub) serve(conn net.Conn) {
+	ip, _, _ := net.SplitHostPort(conn.RemoteAddr().String())
+	if !h.admit(ip) {
+		conn.Close()
+		return
+	}
+	defer h.release(ip)
 	h.clients.Add(1)
 	defer func() {
 		h.clients.Add(-1)
@@ -116,7 +126,7 @@ func (h *Hub) serve(conn net.Conn) {
 	c := &Client{id: h.newID("p"), name: "Player", prof: profile{Back: "classic", Level: 1}, conn: conn, out: make(chan []byte, 64), done: make(chan struct{})}
 	go c.writeLoop()
 	defer c.shutdown()
-	c.send(map[string]any{"t": "welcome", "id": c.id})
+	c.send(map[string]any{"t": "welcome", "id": c.id, "version": Version})
 
 	sc := bufio.NewScanner(conn)
 	sc.Buffer(make([]byte, 4096), 64*1024)
@@ -178,8 +188,25 @@ func (h *Hub) accountMsg(c *Client, m inMsg) bool {
 		var token string
 		var err error
 		if m.T == "register" {
+			if h.invites != nil {
+				if err := h.invites.Check(m.Invite); err != nil {
+					c.fails++
+					authErr(err.Error())
+					return true
+				}
+			}
 			token, _, err = a.Register(strings.TrimSpace(m.Username), m.Password)
+			if err == nil && h.invites != nil {
+				if err = h.invites.Consume(m.Invite, userKey(m.Username)); err != nil {
+					log.Printf("invite consume after register: %v", err)
+					err = nil // account exists; don't strand the player
+				}
+			}
 		} else {
+			if h.invites != nil && h.invites.Revoked(userKey(m.Username)) {
+				authErr(errRevoked.Error())
+				return true
+			}
 			token, _, err = a.Login(strings.TrimSpace(m.Username), m.Password)
 		}
 		if err != nil {
@@ -192,6 +219,10 @@ func (h *Hub) accountMsg(c *Client, m inMsg) bool {
 		return true
 	case "auth":
 		u, err := a.Resume(m.Token)
+		if err == nil && h.invites != nil && h.invites.Revoked(userKey(u.Name)) {
+			a.Logout(m.Token)
+			err = errRevoked
+		}
 		if err != nil {
 			c.send(map[string]any{"t": "auth_expired", "msg": err.Error()})
 			return true
@@ -248,6 +279,18 @@ func (h *Hub) dispatch(c *Client, m inMsg) {
 			r.do(func() { r.leave(c) })
 			c.setRoom(nil)
 		}
+	}
+	switch m.T {
+	case "hello", "login", "register", "auth":
+		if h.minClient != "" && versionLess(m.Version, h.minClient) {
+			c.send(map[string]any{"t": "outdated", "min": h.minClient, "server": Version,
+				"msg": "This beta build is out of date. Please download the latest version."})
+			go func() { time.Sleep(500 * time.Millisecond); c.shutdown() }()
+			return
+		}
+	case "feedback":
+		h.handleFeedback(c, m)
+		return
 	}
 	if h.accountMsg(c, m) {
 		return
@@ -341,14 +384,62 @@ func main() {
 	dataDir := flag.String("data", "data", "directory for persistent data (accounts)")
 	useAccounts := flag.Bool("accounts", true, "enable player accounts and friends")
 	idleExit := flag.Duration("idle-exit", 0, "exit after this long with no connected clients (0 = never); used for singleplayer")
+	useTLS := flag.Bool("tls", false, "encrypt connections with a self-signed certificate in <data>/tls (clients pin it)")
+	inviteOnly := flag.Bool("invite-only", false, "require an invite code to register (see: uno-server invites)")
+	minClient := flag.String("min-client", "", "reject clients older than this version")
+	collectFeedback := flag.Bool("feedback", true, "store player feedback in <data>/feedback.jsonl")
+	showVersion := flag.Bool("version", false, "print the version and exit")
+
+	if len(os.Args) > 1 && os.Args[1] == "gencert" {
+		// uno-server gencert DATA_DIR : create the TLS certificate if missing
+		dir := "data"
+		if len(os.Args) > 2 {
+			dir = os.Args[2]
+		}
+		_, fp, err := loadOrCreateCert(filepath.Join(dir, "tls"))
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		fmt.Println(filepath.Join(dir, "tls", "server.crt"), fp)
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "invites" {
+		if err := runInvitesCLI(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(Version)
+		return
+	}
 
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Printf("UNO server listening on %s", ln.Addr())
+	var tlsCfg *tls.Config
+	if *useTLS {
+		cfg, fp, err := loadOrCreateCert(filepath.Join(*dataDir, "tls"))
+		if err != nil {
+			log.Fatalf("tls: %v", err)
+		}
+		tlsCfg = cfg
+		log.Printf("TLS on (plain allowed from this PC/LAN only); certificate %s (sha256 %s)", filepath.Join(*dataDir, "tls", "server.crt"), fp)
+	}
+	log.Printf("UNO server %s listening on %s", Version, ln.Addr())
 	h := NewHub()
+	h.minClient = *minClient
+	if *inviteOnly {
+		h.invites = NewInvites(*dataDir)
+		log.Printf("invite-only registration (%s)", h.invites.path)
+	}
+	if *collectFeedback && *useAccounts {
+		h.feedback = &Feedback{path: filepath.Join(*dataDir, "feedback.jsonl")}
+	}
 	if *useAccounts {
 		acc, err := OpenAccounts(*dataDir)
 		if err != nil {
@@ -377,6 +468,10 @@ func main() {
 			continue
 		}
 		h.lastAct.Store(time.Now().Unix())
-		go h.serve(conn)
+		go func(conn net.Conn) {
+			if c, ok := sniff(conn, tlsCfg); ok {
+				h.serve(c)
+			}
+		}(conn)
 	}
 }

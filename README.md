@@ -26,6 +26,15 @@ Requirements: [Go 1.22+](https://go.dev/dl/) and [Godot 4.6](https://godotengine
 
 On macOS/Linux, run `./build.sh` instead (it builds `client/bin/uno-server`).
 
+### Closed beta
+
+The beta runs on a server on this PC. It's encrypted with a pinned self-signed certificate, registration needs an invite code, outdated builds are told to update, and testers can send feedback from inside the game. See [`beta/HOSTING.md`](beta/HOSTING.md) for:
+
+- running the server with `beta\run-server.ps1`
+- managing invites with `beta\invites.ps1`
+- reading feedback with `beta\feedback.ps1`
+- shipping builds with `release.ps1`
+
 ### Dedicated server
 
 ```bash

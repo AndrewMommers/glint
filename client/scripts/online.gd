@@ -6,10 +6,11 @@ signal status_changed
 signal friends_changed
 signal notice(kind: String, text: String)
 signal invited(from: String, code: String)
+signal outdated(msg: Dictionary)
 
 const PATH := "user://account.cfg"
 
-var addr := "127.0.0.1:7777"
+var addr := Release.server()
 var username := ""
 var token := ""
 var status := "offline"  # offline, connecting, online (connected, not signed in), signed_in
@@ -20,6 +21,8 @@ var outgoing: Array = []
 
 var _link := LineLink.new()
 var _after_connect: Callable
+var _queue: Array = []  # messages to send once connected (e.g. feedback)
+var _outdated := false
 var _push_timer := Timer.new()
 var _reconnect_timer := Timer.new()
 
@@ -35,7 +38,7 @@ func _ready() -> void:
 	add_child(_push_timer)
 	_reconnect_timer.wait_time = 8.0
 	_reconnect_timer.timeout.connect(func() -> void:
-		if token != "" and status == "offline":
+		if token != "" and status == "offline" and not _outdated:
 			_open())
 	add_child(_reconnect_timer)
 	_reconnect_timer.start()
@@ -46,8 +49,8 @@ func _ready() -> void:
 		addr = cf.get_value("account", "server", addr)
 		username = cf.get_value("account", "username", "")
 		token = cf.get_value("account", "token", "")
-	if token != "":
-		_open()
+	if token != "" or Release.is_release():
+		_open()  # release builds always check in, so outdated builds hear about it
 
 
 func _save() -> void:
@@ -76,7 +79,7 @@ func _open() -> void:
 	var hp := host_port()
 	status = "connecting"
 	status_changed.emit()
-	_link.open(hp[0], hp[1], 2)
+	_link.open(hp[0], hp[1], 2, Release.tls_for(hp[0], hp[1]))
 
 
 func _set_status(s: String) -> void:
@@ -87,9 +90,11 @@ func _set_status(s: String) -> void:
 # ---------------------------------------------------------------- account
 
 ## Signs in (or registers) on the given server.
-func sign_in(server: String, user: String, password: String, register: bool) -> void:
+func sign_in(server: String, user: String, password: String, register: bool, invite: String = "") -> void:
 	var t := "register" if register else "login"
-	var msg := {"t": t, "username": user.strip_edges(), "password": password}
+	var msg := {"t": t, "username": user.strip_edges(), "password": password, "version": Release.version()}
+	if register and invite.strip_edges() != "":
+		msg.invite = invite.strip_edges()
 	last_error = ""
 	if server != addr or not _link.is_online():
 		addr = server
@@ -147,6 +152,17 @@ func invite(name: String) -> void:
 	_link.send({"t": "invite", "username": name})
 
 
+## Sends player feedback to the official server (signed in or not).
+func send_feedback(category: String, text: String, info: Dictionary, log_text: String) -> void:
+	var msg := {"t": "feedback", "category": category, "text": text, "info": info, "log": log_text}
+	if _link.is_online():
+		_link.send(msg)
+	else:
+		_queue.append(msg)
+		if not _link.is_busy():
+			_open()
+
+
 func online_friends() -> Array:
 	return friends.filter(func(f: Dictionary) -> bool: return f.get("online", false))
 
@@ -160,17 +176,25 @@ func _on_connected() -> void:
 		_after_connect = Callable()
 		cb.call()
 	elif token != "":
-		_link.send({"t": "auth", "token": token})
+		_link.send({"t": "auth", "token": token, "version": Release.version()})
+	else:
+		# Anonymous hello: lets the server tell outdated builds to update.
+		_link.send({"t": "hello", "name": "", "version": Release.version()})
+	for m in _queue:
+		_link.send(m)
+	_queue.clear()
 
 
 func _on_disconnected(reason: String) -> void:
 	var was := status
-	_set_status("offline")
 	if _after_connect.is_valid():
 		_after_connect = Callable()
 		last_error = reason
+		_set_status("offline")
 		notice.emit("error", reason)
-	elif was == "signed_in":
+		return
+	_set_status("offline")
+	if was == "signed_in" and not _outdated:
 		notice.emit("info", "Friends offline — reconnecting…")
 
 
@@ -205,6 +229,9 @@ func _on_message(m: Dictionary) -> void:
 			invited.emit(m.get("from", "?"), m.get("code", ""))
 		"error":
 			notice.emit("error", m.get("msg", ""))
+		"outdated":
+			_outdated = true  # stop reconnecting until the game is updated
+			outdated.emit(m)
 
 
 ## Keeps whichever profile has more XP: the account's or this PC's.

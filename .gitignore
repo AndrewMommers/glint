@@ -17,3 +17,8 @@ Thumbs.db
 
 # Exported game
 build/
+
+# Closed beta (private key, accounts, feedback, builds)
+beta/server-data/
+dist/
+client/release.cfg

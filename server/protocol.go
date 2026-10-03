@@ -45,6 +45,11 @@ type inMsg struct {
 	XP         int             `json:"xp"`
 	Level      int             `json:"level"`
 	Data       json.RawMessage `json:"data"`
+	Version    string          `json:"version"`
+	Invite     string          `json:"invite"`
+	Category   string          `json:"category"`
+	Info       json.RawMessage `json:"info"`
+	Log        string          `json:"log"`
 }
 
 // profile is the cosmetic identity a player shows to others.

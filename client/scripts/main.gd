@@ -12,7 +12,7 @@ var modal_root := Control.new()
 var table: Table
 
 var player_name := ""
-var server_addr := "127.0.0.1"
+var server_addr := Release.server()
 var singleplayer := false
 var campaign_stage := -1
 var _on_connected: Callable
@@ -67,6 +67,7 @@ func _ready() -> void:
 			Audio.play("error" if kind == "error" else "notify")
 			toast(text, kind == "error"))
 	Online.invited.connect(_on_invited)
+	Online.outdated.connect(_show_outdated)
 	Online.status_changed.connect(_on_online_changed)
 	Online.friends_changed.connect(func() -> void:
 		if _screen == "friends":
@@ -91,6 +92,8 @@ func _apply_cosmetics() -> void:
 
 ## Dev helpers:  godot --path client -- --demo --screen=campaign --shot=out.png@6 --autoplay --xp=900
 func _debug_args() -> void:
+	if not Release.dev_flags():
+		return
 	var quit_at := 0.0
 	for a in OS.get_cmdline_user_args():
 		if a == "--demo":
@@ -126,6 +129,15 @@ func _debug_args() -> void:
 			var parts := a.get_slice("=", 1).split(",")
 			if parts.size() == 3:
 				Online.sign_in(parts[0], parts[1], parts[2], false)
+		elif a.begins_with("--register="):
+			# --register=host:port,user,password,invite
+			var parts := a.get_slice("=", 1).split(",")
+			if parts.size() == 4:
+				Online.sign_in(parts[0], parts[1], parts[2], true, parts[3])
+		elif a.begins_with("--feedback="):
+			var fb_text := a.get_slice("=", 1)
+			get_tree().create_timer(2.0).timeout.connect(func() -> void:
+				Online.send_feedback("bug", fb_text, _feedback_info(), _log_tail()))
 		elif a.begins_with("--stage="):
 			_start_stage.call_deferred(int(a.get_slice("=", 1)))
 		elif a.begins_with("--shot="):
@@ -165,7 +177,7 @@ func _load_config() -> void:
 	var cf := ConfigFile.new()
 	if cf.load(CONFIG_PATH) == OK:
 		player_name = cf.get_value("player", "name", "")
-		server_addr = cf.get_value("net", "server", "127.0.0.1")
+		server_addr = cf.get_value("net", "server", Release.server())
 		var saved = cf.get_value("game", "setup", null)
 		if saved is Dictionary:
 			setup.merge(saved, true)
@@ -326,7 +338,10 @@ func show_menu() -> void:
 	var left := UI.vbox(12)
 	left.custom_minimum_size = Vector2(440, 0)
 	left.add_child(_logo(112))
-	left.add_child(UI.label("Glass edition  ·  Go-powered multiplayer", 16, 600, UI.MUTED))
+	var tag := "Glass edition  ·  v%s" % Release.version()
+	if Release.channel() == "beta":
+		tag += "  ·  CLOSED BETA"
+	left.add_child(UI.label(tag, 16, 600, UI.MUTED))
 	left.add_child(UI.spacer(0, 14))
 	var nav_glass := GlassPanel.new(16, 26)
 	nav_glass.tint_alpha = 0.06
@@ -360,8 +375,12 @@ func show_menu() -> void:
 	how.custom_minimum_size = Vector2(0, 42)
 	how.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom.add_child(how)
+	var fb := UI.button("Feedback", _feedback_dialog)
+	fb.custom_minimum_size = Vector2(0, 42)
+	fb.tooltip_text = "Report a bug or share an idea"
+	bottom.add_child(fb)
 	var quit := UI.button("Quit", func() -> void: get_tree().quit())
-	quit.custom_minimum_size = Vector2(120, 42)
+	quit.custom_minimum_size = Vector2(110, 42)
 	bottom.add_child(quit)
 	left.add_child(bottom)
 
@@ -1466,6 +1485,7 @@ func _options_body() -> HBoxContainer:
 		toast("Options reset")
 		if table == null:
 			show_options()))
+	row.add_child(UI.button("Feedback…", _feedback_dialog))
 	var reset := UI.button("Reset progress…", _confirm_reset_progress)
 	UI.style_button(reset, Color(UI.DANGER, 0.7))
 	row.add_child(reset)
@@ -1551,10 +1571,14 @@ func show_account() -> void:
 	pw.secret = true
 	col.add_child(pw)
 	var pw2: LineEdit
+	var invite: LineEdit
 	if _account_mode == "register":
 		pw2 = UI.line_edit("", "Repeat password", 128)
 		pw2.secret = true
 		col.add_child(pw2)
+		col.add_child(UI.section("Beta invite code"))
+		invite = UI.line_edit("", "UNO-XXXX-XXXX (from the developer)", 20)
+		col.add_child(invite)
 	var status := ""
 	if Online.status == "connecting":
 		status = "Connecting to %s…" % Online.addr
@@ -1569,7 +1593,7 @@ func show_account() -> void:
 		if user.text.strip_edges().length() < 3 or pw.text.length() < 6:
 			toast("Enter a username (3+) and password (6+)", true)
 			return
-		Online.sign_in(server.text.strip_edges(), user.text, pw.text, _account_mode == "register")
+		Online.sign_in(server.text.strip_edges(), user.text, pw.text, _account_mode == "register", invite.text if invite else "")
 		show_account()
 	var go := UI.button("Create account" if _account_mode == "register" else "Sign in", submit, true)
 	go.custom_minimum_size.y = 52
@@ -1769,10 +1793,91 @@ func toast_action(text: String, action: String, cb: Callable) -> void:
 	tw.tween_callback(p.queue_free)
 
 
+# ---------------------------------------------------------------- beta
+
+func _show_outdated(msg: Dictionary) -> void:
+	var body := UI.vbox(14)
+	var l := UI.label("You have v%s, the server needs v%s or newer. Download the latest beta to keep playing online — your progress is safe." % [Release.version(), msg.get("min", "?")], 15, 500, UI.MUTED)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(440, 0)
+	body.add_child(l)
+	var row := UI.hbox(10)
+	row.add_child(UI.spacer(0, 0, true))
+	row.add_child(UI.button("Later", _close_dialog, false, 100))
+	row.add_child(UI.button("Download update", func() -> void:
+		OS.shell_open(Release.download_url())
+		_close_dialog(), true, 180))
+	body.add_child(row)
+	_dialog("Update required", body)
+
+
+func _feedback_dialog() -> void:
+	var body := UI.vbox(12)
+	var cat := {"v": "bug"}
+	body.add_child(UI.segmented([["🐞 Bug", "bug"], ["💡 Idea", "idea"], ["💬 Other", "other"]], "bug", func(v: String) -> void: cat.v = v))
+	var text := TextEdit.new()
+	text.placeholder_text = "What happened? What did you expect? Steps to reproduce help a lot."
+	text.custom_minimum_size = Vector2(520, 170)
+	text.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	text.add_theme_stylebox_override("normal", UI.flat(Color(0, 0, 0, 0.22), 12, Color(1, 1, 1, 0.18), 1))
+	text.add_theme_stylebox_override("focus", UI.flat(Color(0, 0, 0, 0.28), 12, UI.ACCENT.lightened(0.2), 2))
+	text.add_theme_color_override("font_color", UI.TEXT)
+	text.add_theme_color_override("font_placeholder_color", Color(1, 1, 1, 0.35))
+	body.add_child(text)
+	var attach := {"on": true}
+	body.add_child(UI.toggle("Attach game log", "Helps track down bugs. Contains no passwords.", true, func(v: bool) -> void: attach.on = v))
+	var note := UI.label("Sent to the beta server along with your game version, OS and screen size%s." % (" and username" if Online.is_signed_in() else ""), 12, 500, UI.MUTED)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.add_child(note)
+	var row := UI.hbox(10)
+	row.add_child(UI.spacer(0, 0, true))
+	row.add_child(UI.button("Cancel", _close_dialog, false, 110))
+	row.add_child(UI.button("Send feedback", func() -> void:
+		if text.text.strip_edges().length() < 5:
+			toast("Tell us a little more first", true)
+			return
+		Online.send_feedback(cat.v, text.text, _feedback_info(), _log_tail() if attach.on else "")
+		_close_dialog()
+		toast("Sending feedback…"), true, 160))
+	body.add_child(row)
+	_dialog("Send feedback", body)
+	text.grab_focus.call_deferred()
+
+
+func _feedback_info() -> Dictionary:
+	var info := {
+		"version": Release.version(),
+		"channel": Release.channel(),
+		"os": OS.get_name(),
+		"os_version": OS.get_version(),
+		"locale": OS.get_locale(),
+		"screen": "%dx%d" % [DisplayServer.screen_get_size().x, DisplayServer.screen_get_size().y],
+		"window": "%dx%d" % [get_viewport().get_visible_rect().size.x, get_viewport().get_visible_rect().size.y],
+		"gpu": RenderingServer.get_video_adapter_name(),
+		"level": Profile.level(),
+		"screen_name": _screen,
+		"in_game": table != null,
+	}
+	if table != null:
+		info.phase = table.st.get("phase", "")
+		info.round = table.st.get("round", 0)
+		info.rules = table.st.get("settings", {}).get("rules", {})
+	return info
+
+
+func _log_tail() -> String:
+	var f := FileAccess.open("user://logs/godot.log", FileAccess.READ)
+	if f == null:
+		return ""
+	var n := f.get_length()
+	f.seek(maxi(0, n - 12000))
+	return f.get_buffer(mini(n, 12000)).get_string_from_utf8()
+
+
 # ---------------------------------------------------------------- network
 
 func _net_connected() -> void:
-	var hello := {"t": "hello", "name": _name(), "profile": Profile.net_profile()}
+	var hello := {"t": "hello", "name": _name(), "profile": Profile.net_profile(), "version": Release.version()}
 	if Online.is_signed_in():
 		hello.token = Online.token
 	Net.send(hello)
@@ -1813,6 +1918,8 @@ func _net_message(msg: Dictionary) -> void:
 				table.apply_state(msg)
 		"rooms":
 			_show_rooms(msg.get("rooms", []))
+		"outdated":
+			_show_outdated(msg)
 		"emote":
 			if table:
 				table.show_emote(msg.player, msg.text)
