@@ -105,7 +105,6 @@ if ($Publish) {
     $assets = @($zip)
     if ($setup) { $assets = @($setup) + $assets }
     gh release create "v$Version" @assets --repo $BetaRepo --prerelease --title "Glint $Version (closed beta)" --notes-file $notes
-    git -C $root tag -f "v$Version" | Out-Null
-    git -C $root push -f origin "v$Version" 2>$null | Out-Null
+    # No tag on the source repo: tags there only show "Source code" downloads.
     Write-Host "Published: https://github.com/$BetaRepo/releases/tag/v$Version" -ForegroundColor Green
 }

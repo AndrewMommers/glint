@@ -2,6 +2,10 @@
 
 # Glint
 
+> ### ⬇ [Download Glint (closed beta)](https://github.com/AndrewMommers/glint-beta/releases/latest)
+> The installer (`Glint-Setup-….exe`) and the portable zip live in the **glint-beta** repo's Releases.
+> This repo is the source code.
+
 A modern color-matching card game with a **Go** authoritative game server and a **Godot 4.6** client with a frosted-glass (glassmorphism) UI.
 
 - **Singleplayer vs bots.** Easy, normal, and hard AI. The Go server runs quietly on your PC.
