@@ -159,6 +159,7 @@ type stateJ struct {
 	Settings    settings  `json:"settings"`
 	Players     []playerJ `json:"players"`
 	Round       int       `json:"round"`
+	Match       int       `json:"match"` // new match = new number, even if the round restarts at 1
 	Hand        []cardJ   `json:"hand"`
 	Top         *cardJ    `json:"top,omitempty"`
 	Color       string    `json:"color,omitempty"`

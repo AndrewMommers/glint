@@ -46,6 +46,7 @@ type Room struct {
 	gen         int // bumped on every state change; stale timers compare against it
 	deadline    time.Time
 	round       int
+	match       int // increments for every new match, so (match, round) is unique per room
 	roundPoints int
 	winner      string
 }
@@ -287,6 +288,9 @@ func (r *Room) start() error {
 		}
 		r.round = 0
 	}
+	if r.round == 0 {
+		r.match++
+	}
 	if len(r.seats) < 2 {
 		return errors.New("add a bot or wait for another player first")
 	}
@@ -444,7 +448,7 @@ func (r *Room) idAt(i int) string {
 func (r *Room) stateFor(viewer int, ev []uno.Event) stateJ {
 	st := stateJ{
 		T: "state", Code: r.code, Phase: r.phase, You: r.idAt(viewer), Host: r.host,
-		Settings: r.settings, Round: r.round, Drawn: -1, Hand: []cardJ{}, Playable: []int{},
+		Settings: r.settings, Round: r.round, Match: r.match, Drawn: -1, Hand: []cardJ{}, Playable: []int{},
 		Events: []eventJ{}, Winner: r.winner, RoundPoints: r.roundPoints, Dir: 1,
 	}
 	g := r.game

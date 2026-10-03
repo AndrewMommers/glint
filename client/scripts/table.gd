@@ -22,7 +22,10 @@ var seats := {}  # player id -> SeatView
 var hand_views := {}  # card id -> CardView
 var discard_views: Array = []
 var _top_id := -1
-var _results_round := -1
+var _results_key := ""  # "code/match/round" whose end-of-round menu was shown
+## Set by main: singleplayer tables keep "Play again"; private multiplayer
+## lobbies get "Continue / Leave".
+var singleplayer := false
 
 var seats_root := Control.new()
 var piles := Control.new()
@@ -473,10 +476,11 @@ func apply_state(s: Dictionary) -> void:
 	st = s
 	me = s.get("you", "")
 	time_left = s.get("timeLeft", 0.0)
-	if s.get("phase") == "playing" and _results_round != -1 and s.get("round") != _results_round:
+	# A match restarts at round 1, so the match number is part of the key.
+	var round_key := "%s/%d/%d" % [s.get("code", ""), int(s.get("match", 0)), int(s.get("round", 0))]
+	if s.get("phase") == "playing" and _results_key != "" and round_key != _results_key:
 		_close_modal()
-		_results_round = -1
-	var round_key := "%s/%d" % [s.get("code", ""), int(s.get("round", 0))]
+		_results_key = ""
 	if first or round_key != _last_round:
 		_reset_round()
 	_last_round = round_key
@@ -488,8 +492,8 @@ func apply_state(s: Dictionary) -> void:
 	_sync_controls()
 	_layout()
 
-	if s.get("phase") in ["roundover", "gameover"] and _results_round != s.get("round"):
-		_results_round = s.get("round")
+	if s.get("phase") in ["roundover", "gameover"] and _results_key != round_key:
+		_results_key = round_key
 		get_tree().create_timer(1.3).timeout.connect(_show_results)
 
 
@@ -1078,7 +1082,17 @@ func _show_results() -> void:
 	body.add_child(_score_rows())
 	var row := UI.hbox(12)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	if st.get("host") == me:
+	var is_host: bool = st.get("host") == me
+	var private_lobby: bool = not singleplayer and not st.get("settings", {}).get("public", true)
+	if private_lobby:
+		# Private multiplayer lobby: Continue or Leave.
+		row.add_child(UI.button("Continue", func() -> void:
+			_close_modal()
+			if is_host:
+				Net.send({"t": "start"})
+			else:
+				_waiting_for_host(), true, 180))
+	elif is_host:
 		row.add_child(UI.button("Play again" if over else "Next round", func() -> void:
 			_close_modal()
 			Net.send({"t": "start"}), true, 180))
@@ -1094,6 +1108,13 @@ func _show_results() -> void:
 	else:
 		title = "You won round %d!" % st.get("round", 0) if winner == me else "%s wins round %d" % [_name(winner), st.get("round", 0)]
 	_modal(title, body, false)
+
+
+## Guests who pressed Continue wait here until the host starts the next round.
+func _waiting_for_host() -> void:
+	turn_label.text = "Waiting for %s to continue…" % _name(st.get("host", ""))
+	turn_label.add_theme_color_override("font_color", UI.MUTED)
+	toast("Waiting for the host to continue")
 
 
 # ---------------------------------------------------------------- direction ring

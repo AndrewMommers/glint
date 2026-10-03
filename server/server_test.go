@@ -58,8 +58,24 @@ func TestNetworkRound(t *testing.T) {
 			started = true
 			send(map[string]any{"t": "start"})
 		case st.Phase == "gameover":
-			t.Logf("round %d won by %s for %d points", st.Round, st.Winner, st.RoundPoints)
-			return
+			t.Logf("match %d round %d won by %s for %d points", st.Match, st.Round, st.Winner, st.RoundPoints)
+			if st.Match != 1 {
+				t.Fatalf("first match should be match 1, got %d", st.Match)
+			}
+			// "Play again": a new match restarts at round 1 but gets a new match number,
+			// so clients can tell it apart from the one that just ended.
+			send(map[string]any{"t": "start"})
+			for sc.Scan() {
+				var next stateJ
+				json.Unmarshal(sc.Bytes(), &next)
+				if next.T == "state" && next.Phase == "playing" {
+					if next.Match != 2 || next.Round != 1 {
+						t.Fatalf("play again: want match 2 round 1, got match %d round %d", next.Match, next.Round)
+					}
+					return
+				}
+			}
+			t.Fatal("no state after play again")
 		case st.Phase == "playing" && st.Turn == st.You:
 			if st.CanUno {
 				send(map[string]any{"t": "uno"})

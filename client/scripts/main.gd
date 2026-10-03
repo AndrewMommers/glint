@@ -147,6 +147,23 @@ func _debug_args() -> void:
 				Online.send_feedback("bug", fb_text, _feedback_info(), _log_tail()))
 		elif a.begins_with("--stage="):
 			_start_stage.call_deferred(int(a.get_slice("=", 1)))
+		elif a.begins_with("--fake-win="):
+			_fake_win.call_deferred(int(a.get_slice("=", 1)))
+		elif a.begins_with("--fake-replay="):
+			# win, "Play again" (new match, round 1 again), win again
+			var st_i := int(a.get_slice("=", 1))
+			_fake_win.call_deferred(st_i, 1)
+			get_tree().create_timer(4.0).timeout.connect(func() -> void: _fake_win(st_i, 2))
+		elif a == "--fake-private":
+			_fake_win.call_deferred(-1, 1, true)
+		elif a == "--quick" or a.begins_with("--quick="):
+			# 3-card hands so a round ends in seconds (for testing).
+			# --quick = quick play vs 1 easy bot; --quick=N = campaign level N (0-based).
+			var stage := int(a.get_slice("=", 1)) if "=" in a else -1
+			var qs: Dictionary = Cosmetics.stage_settings(maxi(stage, 0))
+			qs.rules.handSize = 3
+			var bots: int = Cosmetics.STAGES[stage].bots if stage >= 0 else 1
+			_start_singleplayer.call_deferred(bots, qs, stage)
 		elif a.begins_with("--shot="):
 			var spec := a.get_slice("=", 1)
 			var path := spec.get_slice("@", 0)
@@ -158,6 +175,40 @@ func _debug_args() -> void:
 		get_tree().create_timer(quit_at).timeout.connect(func() -> void:
 			Net.stop_local_servers()
 			get_tree().quit())
+
+
+## Dev: drive the end-of-round flow with a canned "you won" state, no server.
+## --fake-win=N plays it as campaign level N (0-based), -1 for quick play.
+func _fake_win(stage: int, match_no: int = 1, private_guest: bool = false) -> void:
+	campaign_stage = stage
+	singleplayer = not private_guest
+	var me := "p1"
+	var players := [
+		{"id": me, "name": _name(), "cards": 0, "bot": false, "host": not private_guest, "score": 93, "vulnerable": false},
+		{"id": "b2", "name": "Orbit", "cards": 1, "bot": true, "difficulty": "easy", "host": false, "score": 0, "vulnerable": false, "back": "classic"},
+		{"id": "b3", "name": "Kiwi", "cards": 9, "bot": true, "difficulty": "easy", "host": false, "score": 0, "vulnerable": false, "back": "neon"},
+	]
+	var settings := Cosmetics.stage_settings(maxi(stage, 0))
+	settings.public = false
+	if private_guest:
+		players[1].bot = false
+		players[1].name = "Sam"
+	var base := {"t": "state", "code": "TEST", "you": me, "host": "b2" if private_guest else me, "settings": settings, "players": players,
+		"round": 1, "match": match_no, "hand": [], "top": {"id": 101, "color": "wild", "value": "wild4"}, "color": "blue",
+		"dir": 1, "drawPile": 77, "pending": 0, "playable": [], "drawn": -1, "events": []}
+	var playing := base.duplicate(true)
+	playing.phase = "playing"
+	playing.turn = me
+	playing.hand = [{"id": 101, "color": "wild", "value": "wild4"}]
+	_net_message(playing)
+	await get_tree().create_timer(0.6).timeout
+	var over := base.duplicate(true)
+	over.phase = "gameover"
+	over.winner = me
+	over.roundPoints = 93
+	over.events = [{"kind": "play", "player": me, "card": {"id": 101, "color": "wild", "value": "wild4"}, "color": "blue"},
+		{"kind": "wild4", "player": me, "target": "b3", "count": 4}, {"kind": "win", "player": me}]
+	_net_message(over)
 
 
 func _process(_d: float) -> void:
@@ -1262,7 +1313,8 @@ func _leave() -> void:
 # ---------------------------------------------------------------- progression
 
 func _round_key(st: Dictionary) -> String:
-	return "%s/%d" % [st.get("code", ""), int(st.get("round", 0))]
+	# Includes the match: "Play again" restarts at round 1 in the same room.
+	return "%s/%d/%d" % [st.get("code", ""), int(st.get("match", 0)), int(st.get("round", 0))]
 
 
 func _track(st: Dictionary) -> void:
@@ -1936,6 +1988,7 @@ func _net_message(msg: Dictionary) -> void:
 					table.options_requested.connect(func() -> void: _dialog("Options", _options_body()))
 					Audio.music("game")
 					table.results_hook = _results_hook
+					table.singleplayer = singleplayer
 					screen_root.add_child(table)
 				table.apply_state(msg)
 		"rooms":
