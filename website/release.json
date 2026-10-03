@@ -1,0 +1,6 @@
+{
+  "version": "0.9.0-beta.4",
+  "date": "2026-10-03",
+  "setup": { "name": "Glint-Setup-0.9.0-beta.4.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/setup-latest/download?project=6ac0ded2003c01a55e80", "bytes": 34233593, "sha256": "ebe4a8007d8042bb0cccbed1710b4b9422b6d87353d2304cd2f011fed6a2cb14" },
+  "zip": { "name": "Glint-0.9.0-beta.4-windows.zip", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/zip-latest/download?project=6ac0ded2003c01a55e80", "bytes": 45274619, "sha256": "1758b7d81aba6bbff9a3808d37dcbafe061a99cb1d0c352ec38abcdf806c1627" }
+}

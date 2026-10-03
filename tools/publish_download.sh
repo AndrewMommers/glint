@@ -51,6 +51,8 @@ upload() { # upload <fileId> <path>
   name="$(basename "$path")"; size="$(wc -c < "$path" | tr -d ' ')"
   api DELETE "/storage/buckets/$BUCKET/files/$id" >/dev/null 2>&1 || true
   tmp="$(mktemp -d)"
+  # Native Windows curl (Git Bash) can't read MSYS paths like /tmp/..., so hand it a Windows path.
+  command -v cygpath >/dev/null && tmp="$(cygpath -m "$tmp")"
   echo "uploading $name ($((size / 1048576)) MB) as $id"
   while [ "$off" -lt "$size" ]; do
     part="$tmp/$name"
