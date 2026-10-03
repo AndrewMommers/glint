@@ -124,6 +124,12 @@ client/                 Godot 4.6 project
   shaders/background.gdshader                        animated, themeable aurora background
 ```
 
+## Website
+
+`website/` is the game's landing page: a static site with no build step, no trackers and no external requests.
+To preview it, run `python -m http.server 8099 --directory website` and open http://localhost:8099.
+The screenshots in `website/assets/shots/` are taken from the game.
+
 ## Branding
 
 The logo, app icon, palette, typography, glass recipe and marketing art are all generated from
