@@ -389,6 +389,9 @@ func main() {
 	minClient := flag.String("min-client", "", "reject clients older than this version")
 	collectFeedback := flag.Bool("feedback", true, "store player feedback in <data>/feedback.jsonl")
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	awEndpoint := flag.String("appwrite-endpoint", "", "Appwrite endpoint, e.g. https://syd.cloud.appwrite.io/v1 (enables the Appwrite backend; key from $APPWRITE_API_KEY or <data>/appwrite.key)")
+	awProject := flag.String("appwrite-project", "", "Appwrite project id")
+	awDB := flag.String("appwrite-db", "uno", "Appwrite TablesDB database id")
 
 	if len(os.Args) > 1 && os.Args[1] == "gencert" {
 		// uno-server gencert DATA_DIR : create the TLS certificate if missing
@@ -402,6 +405,13 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println(filepath.Join(dir, "tls", "server.crt"), fp)
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "appwrite-setup" {
+		if err := runAppwriteSetup(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			os.Exit(1)
+		}
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "invites" {
@@ -441,12 +451,27 @@ func main() {
 		h.feedback = &Feedback{path: filepath.Join(*dataDir, "feedback.jsonl")}
 	}
 	if *useAccounts {
-		acc, err := OpenAccounts(*dataDir)
-		if err != nil {
-			log.Fatalf("accounts: %v", err)
+		var acc *Accounts
+		var err error
+		if *awEndpoint != "" {
+			key := loadAppwriteKey(*dataDir)
+			if key == "" {
+				log.Fatalf("appwrite: no API key (set APPWRITE_API_KEY or put it in %s)", filepath.Join(*dataDir, "appwrite.key"))
+			}
+			h.appwrite = NewAppwrite(*awEndpoint, *awProject, key, *awDB)
+			acc, err = OpenAccountsAppwrite(h.appwrite)
+			if err != nil {
+				log.Fatalf("appwrite: %v (did you run: uno-server appwrite-setup?)", err)
+			}
+			log.Printf("accounts: Appwrite %s (project %s, %d players)", *awEndpoint, *awProject, len(acc.data.Users))
+		} else {
+			acc, err = OpenAccounts(*dataDir)
+			if err != nil {
+				log.Fatalf("accounts: %v", err)
+			}
+			log.Printf("accounts enabled (%s)", acc.path)
 		}
 		h.accounts = acc
-		log.Printf("accounts enabled (%s)", acc.path)
 	}
 
 	if *idleExit > 0 {

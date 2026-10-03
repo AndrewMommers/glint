@@ -1589,7 +1589,7 @@ func show_account() -> void:
 	var user := UI.line_edit(Online.username, "3–16 letters, numbers or _", 16)
 	col.add_child(user)
 	col.add_child(UI.section("Password"))
-	var pw := UI.line_edit("", "At least 6 characters", 128)
+	var pw := UI.line_edit("", "At least 8 characters", 128)
 	pw.secret = true
 	col.add_child(pw)
 	var pw2: LineEdit
@@ -1612,8 +1612,8 @@ func show_account() -> void:
 		if pw2 != null and pw2.text != pw.text:
 			toast("Passwords don't match", true)
 			return
-		if user.text.strip_edges().length() < 3 or pw.text.length() < 6:
-			toast("Enter a username (3+) and password (6+)", true)
+		if user.text.strip_edges().length() < 3 or pw.text.length() < 8:
+			toast("Enter a username (3+) and password (8+)", true)
 			return
 		Online.sign_in(server.text.strip_edges(), user.text, pw.text, _account_mode == "register", invite.text if invite else "")
 		show_account()

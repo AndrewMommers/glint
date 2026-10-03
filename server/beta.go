@@ -130,5 +130,20 @@ func (h *Hub) handleFeedback(c *Client, m inMsg) {
 		return
 	}
 	log.Printf("feedback (%s) from %s", cat, c.name)
+	if aw := h.appwrite; aw != nil {
+		go func() {
+			version := ""
+			var inf map[string]any
+			if json.Unmarshal(e.Info, &inf) == nil {
+				version, _ = inf["version"].(string)
+			}
+			err := aw.CreateRow("feedback", "unique()", map[string]any{
+				"user": e.User, "name": e.Name, "category": e.Category, "version": clip(version, 32),
+				"text": e.Text, "info": string(e.Info), "log": e.Log})
+			if err != nil {
+				log.Printf("appwrite: feedback: %v", err)
+			}
+		}()
+	}
 	c.send(map[string]any{"t": "notice", "kind": "feedback_ok", "msg": "Thanks! Your feedback was sent."})
 }

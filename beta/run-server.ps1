@@ -22,6 +22,16 @@ $versionFile = Join-Path $here "VERSION"
 if (Test-Path $versionFile) { $minClient = (Get-Content $versionFile -Raw).Trim() }
 
 $serverArgs = @("-addr", ":$Port", "-data", $data, "-tls", "-invite-only")
+
+# Use Appwrite for accounts/friends/feedback when configured (beta\appwrite.json
+# + key in beta\server-data\appwrite.key); otherwise a local JSON file.
+$awConfig = Join-Path $here "appwrite.json"
+$backend = "local file (beta\server-data\accounts.json)"
+if ((Test-Path $awConfig) -and ((Test-Path (Join-Path $data "appwrite.key")) -or $env:APPWRITE_API_KEY)) {
+    $aw = Get-Content $awConfig -Raw | ConvertFrom-Json
+    $serverArgs += @("-appwrite-endpoint", $aw.endpoint, "-appwrite-project", $aw.project, "-appwrite-db", $aw.database)
+    $backend = "Appwrite ($($aw.endpoint), project $($aw.project))"
+}
 if ($minClient) { $serverArgs += @("-min-client", $minClient) }
 
 Write-Host ""
@@ -29,6 +39,7 @@ Write-Host "UNO Glass beta server" -ForegroundColor Cyan
 Write-Host "  Port:        $Port (TCP)"
 Write-Host "  Min client:  $(if ($minClient) { $minClient } else { 'any' })"
 Write-Host "  Data:        $data"
+Write-Host "  Accounts:    $backend"
 Write-Host ""
 Write-Host "Testers connect to  <your public IP or DDNS name>:$Port"
 Write-Host "You can play on this PC using 127.0.0.1:$Port"

@@ -22,6 +22,7 @@ type Hub struct {
 	invites   *Invites     // non-nil when registration needs an invite code
 	minClient string       // oldest client version allowed ("" = any)
 	feedback  *Feedback    // nil when feedback collection is off
+	appwrite  *Appwrite    // non-nil when Appwrite is the backend
 	perIP     map[string]int
 	ipMu      sync.Mutex
 }

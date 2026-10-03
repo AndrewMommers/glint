@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,13 +18,21 @@ import (
 	"time"
 )
 
-// Accounts is a small JSON-file user store: credentials (PBKDF2-SHA256),
-// session tokens (stored hashed), friends and the synced player profile.
+// Accounts is the player store: credentials, sessions, friends and the synced
+// player profile. Two backends:
+//   - JSON file (dev / LAN): PBKDF2-SHA256 passwords, hashed session tokens.
+//   - Appwrite: Appwrite Auth owns passwords and sessions; player rows live in
+//     TablesDB and are cached in memory, with writes persisted in the background.
 type Accounts struct {
 	mu     sync.Mutex
 	path   string
 	data   accountsFile
 	online map[string]map[*Client]bool // user key -> connected clients
+
+	aw    *Appwrite
+	byAw  map[string]string // Appwrite user id -> user key
+	dirty map[string]bool   // user keys waiting to be written to Appwrite
+	kick  chan struct{}
 }
 
 type accountsFile struct {
@@ -42,6 +51,8 @@ type User struct {
 	XP       int             `json:"xp"`
 	Level    int             `json:"level"`
 	Profile  json.RawMessage `json:"profile,omitempty"`
+
+	AppwriteID string `json:"appwriteId,omitempty"`
 }
 
 const pbkdf2Iterations = 120_000
@@ -50,7 +61,7 @@ var (
 	validName = regexp.MustCompile(`^[A-Za-z0-9_]{3,16}$`)
 
 	errBadName     = errors.New("usernames are 3-16 letters, numbers or _")
-	errBadPassword = errors.New("passwords need at least 6 characters")
+	errBadPassword = errors.New("passwords need at least 8 characters")
 	errTaken       = errors.New("that username is taken")
 	errBadLogin    = errors.New("wrong username or password")
 	errBadToken    = errors.New("your session expired, please sign in again")
@@ -124,8 +135,11 @@ func (a *Accounts) Register(name, pw string) (string, *User, error) {
 	if !validName.MatchString(name) {
 		return "", nil, errBadName
 	}
-	if len(pw) < 6 || len(pw) > 128 {
+	if len(pw) < 8 || len(pw) > 128 {
 		return "", nil, errBadPassword
+	}
+	if a.aw != nil {
+		return a.registerAppwrite(name, pw)
 	}
 	salt := make([]byte, 16)
 	rand.Read(salt)
@@ -144,6 +158,9 @@ func (a *Accounts) Register(name, pw string) (string, *User, error) {
 }
 
 func (a *Accounts) Login(name, pw string) (string, *User, error) {
+	if a.aw != nil {
+		return a.loginAppwrite(name, pw)
+	}
 	a.mu.Lock()
 	u := a.data.Users[userKey(name)]
 	a.mu.Unlock()
@@ -161,6 +178,9 @@ func (a *Accounts) Login(name, pw string) (string, *User, error) {
 }
 
 func (a *Accounts) Resume(token string) (*User, error) {
+	if a.aw != nil {
+		return a.resumeAppwrite(token)
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	k, ok := a.data.Tokens[hashToken(token)]
@@ -181,6 +201,10 @@ func (a *Accounts) Info(k string) (name string, xp int, data json.RawMessage) {
 }
 
 func (a *Accounts) Logout(token string) {
+	if a.aw != nil {
+		go a.aw.DeleteSession(token)
+		return
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	delete(a.data.Tokens, hashToken(token))
@@ -199,7 +223,7 @@ func (a *Accounts) PushProfile(k string, xp, level int, profile json.RawMessage)
 		return
 	}
 	u.XP, u.Level, u.Profile = xp, clamp(level, 1, 999), profile
-	a.save()
+	a.commit(k)
 }
 
 // ---- presence ----
@@ -342,7 +366,7 @@ func (a *Accounts) AddFriend(me, other string) (string, error) {
 		u.Outgoing = append(u.Outgoing, ok)
 		o.Incoming = append(o.Incoming, me)
 	}
-	a.save()
+	a.commit(me, ok)
 	name, oname := u.Name, o.Name
 	a.mu.Unlock()
 	a.PushFriends(me)
@@ -377,7 +401,7 @@ func (a *Accounts) Accept(me, other string) error {
 		return errNoUser
 	}
 	a.befriend(u, me, o, ok)
-	a.save()
+	a.commit(me, ok)
 	name := u.Name
 	a.mu.Unlock()
 	a.PushFriends(me)
@@ -397,7 +421,7 @@ func (a *Accounts) Unlink(me, other string) {
 	if o != nil {
 		o.Friends, o.Incoming, o.Outgoing = remove(o.Friends, me), remove(o.Incoming, me), remove(o.Outgoing, me)
 	}
-	a.save()
+	a.commit(me, ok)
 	a.mu.Unlock()
 	a.PushFriends(me)
 	a.PushFriends(ok)
@@ -420,4 +444,217 @@ func (a *Accounts) AreFriends(me, other string) bool {
 	defer a.mu.Unlock()
 	u := a.data.Users[me]
 	return u != nil && contains(u.Friends, userKey(other))
+}
+
+// ---- Appwrite backend ----
+
+// OpenAccountsAppwrite loads every player row into memory and starts the
+// background writer.
+func OpenAccountsAppwrite(aw *Appwrite) (*Accounts, error) {
+	a := &Accounts{
+		data:   accountsFile{Users: map[string]*User{}, Tokens: map[string]string{}},
+		online: map[string]map[*Client]bool{},
+		aw:     aw,
+		byAw:   map[string]string{},
+		dirty:  map[string]bool{},
+		kick:   make(chan struct{}, 1),
+	}
+	rows, err := aw.ListAllRows("players")
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		k, _ := row["$id"].(string)
+		u := rowToUser(row)
+		if k == "" || u.AppwriteID == "" {
+			continue
+		}
+		a.data.Users[k] = u
+		a.byAw[u.AppwriteID] = k
+	}
+	a.path = aw.Endpoint + " project " + aw.Project
+	go a.writer()
+	return a, nil
+}
+
+// commit persists the given users. Caller holds a.mu.
+func (a *Accounts) commit(keys ...string) error {
+	if a.aw == nil {
+		return a.save()
+	}
+	for _, k := range keys {
+		a.dirty[k] = true
+	}
+	select {
+	case a.kick <- struct{}{}:
+	default:
+	}
+	return nil
+}
+
+// writer writes dirty players to Appwrite in the background, coalescing
+// bursts of changes and retrying failures.
+func (a *Accounts) writer() {
+	for range a.kick {
+		a.mu.Lock()
+		batch := map[string]map[string]any{}
+		for k := range a.dirty {
+			if u := a.data.Users[k]; u != nil {
+				batch[k] = userRow(u)
+			}
+		}
+		a.dirty = map[string]bool{}
+		a.mu.Unlock()
+		failed := false
+		for k, row := range batch {
+			if err := a.aw.UpdateRow("players", k, row); err != nil {
+				log.Printf("appwrite: saving %s: %v", k, err)
+				a.mu.Lock()
+				a.dirty[k] = true
+				a.mu.Unlock()
+				failed = true
+			}
+		}
+		if failed {
+			time.AfterFunc(5*time.Second, func() {
+				select {
+				case a.kick <- struct{}{}:
+				default:
+				}
+			})
+		}
+	}
+}
+
+func userRow(u *User) map[string]any {
+	nz := func(s []string) []string {
+		if s == nil {
+			return []string{}
+		}
+		return s
+	}
+	return map[string]any{
+		"name": u.Name, "appwriteId": u.AppwriteID,
+		"friends": nz(u.Friends), "incoming": nz(u.Incoming), "outgoing": nz(u.Outgoing),
+		"xp": u.XP, "level": u.Level, "profile": string(u.Profile),
+	}
+}
+
+func rowToUser(row map[string]any) *User {
+	strs := func(v any) []string {
+		var out []string
+		if arr, ok := v.([]any); ok {
+			for _, x := range arr {
+				if s, ok := x.(string); ok {
+					out = append(out, s)
+				}
+			}
+		}
+		return out
+	}
+	num := func(v any) int {
+		f, _ := v.(float64)
+		return int(f)
+	}
+	u := &User{Friends: strs(row["friends"]), Incoming: strs(row["incoming"]), Outgoing: strs(row["outgoing"]),
+		XP: num(row["xp"]), Level: num(row["level"])}
+	u.Name, _ = row["name"].(string)
+	u.AppwriteID, _ = row["appwriteId"].(string)
+	if p, _ := row["profile"].(string); p != "" && json.Valid([]byte(p)) {
+		u.Profile = json.RawMessage(p)
+	}
+	if u.Level < 1 {
+		u.Level = 1
+	}
+	return u
+}
+
+// Appwrite logins use an email; players only have usernames, so each gets a
+// stable internal address (no mail is ever sent to it).
+func playerEmail(k string) string { return k + "@players.unoglass.app" }
+
+// awUserError turns Appwrite auth errors into player-facing messages.
+func awUserError(err error, fallback error) error {
+	var e *awError
+	if errors.As(err, &e) {
+		switch {
+		case e.Status == 409:
+			return errTaken
+		case e.Type == "user_blocked":
+			return errors.New("this account has been disabled")
+		case e.Type == "password_recently_used", e.Type == "password_personal_data",
+			strings.Contains(e.Type, "password"):
+			return errors.New(e.Message)
+		case e.Status == 400 && strings.Contains(strings.ToLower(e.Message), "password"):
+			return errors.New(e.Message)
+		case e.Status == 401:
+			return fallback
+		}
+	}
+	log.Printf("appwrite: %v", err)
+	return errors.New("the account service is unavailable, try again shortly")
+}
+
+func (a *Accounts) registerAppwrite(name, pw string) (string, *User, error) {
+	k := userKey(name)
+	a.mu.Lock()
+	if _, taken := a.data.Users[k]; taken {
+		a.mu.Unlock()
+		return "", nil, errTaken
+	}
+	a.mu.Unlock()
+
+	id, err := a.aw.CreateUser(name, playerEmail(k), pw)
+	if err != nil {
+		return "", nil, awUserError(err, errTaken)
+	}
+	if err := a.aw.SetLabels(id, []string{"player", "beta"}); err != nil {
+		log.Printf("appwrite: labels for %s: %v", k, err)
+	}
+	u := &User{Name: name, AppwriteID: id, Level: 1, Created: time.Now().UTC()}
+	if err := a.aw.CreateRow("players", k, userRow(u)); err != nil {
+		a.aw.DeleteUser(id)
+		return "", nil, awUserError(err, errTaken)
+	}
+	secret, _, err := a.aw.CreateSession(playerEmail(k), pw)
+	if err != nil {
+		return "", nil, awUserError(err, errBadLogin)
+	}
+	a.mu.Lock()
+	a.data.Users[k] = u
+	a.byAw[id] = k
+	a.mu.Unlock()
+	return secret, u, nil
+}
+
+func (a *Accounts) loginAppwrite(name, pw string) (string, *User, error) {
+	k := userKey(name)
+	secret, uid, err := a.aw.CreateSession(playerEmail(k), pw)
+	if err != nil {
+		return "", nil, awUserError(err, errBadLogin)
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.byAw[uid] != k || a.data.Users[k] == nil {
+		go a.aw.DeleteSession(secret)
+		return "", nil, errBadLogin
+	}
+	return secret, a.data.Users[k], nil
+}
+
+func (a *Accounts) resumeAppwrite(token string) (*User, error) {
+	uid, err := a.aw.GetAccount(token)
+	if err != nil {
+		if s := awStatus(err); s == 401 || s == 404 {
+			return nil, errBadToken
+		}
+		return nil, awUserError(err, errBadToken)
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	k, ok := a.byAw[uid]
+	if !ok || a.data.Users[k] == nil {
+		return nil, errBadToken
+	}
+	return a.data.Users[k], nil
 }

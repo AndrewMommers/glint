@@ -23,6 +23,32 @@ You do these steps yourself: they change your router and firewall settings.
    updater). Testers can also type a new address themselves in
    Multiplayer or Account if it changes.
 
+## Appwrite (accounts, friends, feedback)
+
+The server stores player accounts in your Appwrite project (`beta/appwrite.json`):
+- **Logins:** Appwrite Auth owns passwords and sessions.
+- **Player data:** player rows and feedback live in the `uno` TablesDB database.
+- **The API key:** it stays on this PC. It's never put in the game.
+
+One-time setup:
+
+1. **Create an API key.** In the Appwrite console, open your project, then **Overview → API keys → Create API key**. Name it `uno-server`, with no expiry, and give it these scopes:
+   - **Auth:** `users.read`, `users.write`, `sessions.write`
+   - **Database:** `databases.read`, `databases.write`, `tables.read`, `tables.write`,
+     `columns.read`, `columns.write`, `indexes.read`, `indexes.write`, `rows.read`, `rows.write`
+2. **Save the key.** Paste it into a new file, `beta\server-data\appwrite.key`. The file holds just the key. That folder is git-ignored, so don't put the key anywhere else.
+3. **Create the database.** Run `beta\appwrite-setup.cmd`. It creates the `uno` database with a `players` table and a `feedback` table, readable and writable only by the server. It's safe to run again.
+
+From then on, `beta\run-server.cmd` uses Appwrite automatically. The startup banner shows `Accounts: Appwrite …`.
+
+Without a key it falls back to the local `beta\server-data\accounts.json`.
+
+**Notes:**
+- Players need a password of at least 8 characters, which is Appwrite's rule.
+- In Appwrite, players show up under **Auth** with the labels `player` and `beta`. Their internal email is `<username>@players.unoglass.app`. No mail is ever sent there.
+- **Blocking** a user in the Appwrite console stops them from signing in.
+- Feedback can be read in **Databases → uno → feedback**, or with `beta\feedback.cmd`.
+
 ## Every session
 
 ```powershell
