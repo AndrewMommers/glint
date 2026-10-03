@@ -1,0 +1,25 @@
+name: Deploy website
+
+# Publishes website/ to Appwrite Sites whenever it changes on main.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "website/**"
+      - "tools/deploy_website.sh"
+      - ".github/workflows/deploy-website.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-website
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to Appwrite Sites
+        env:
+          APPWRITE_SITES_KEY: ${{ secrets.APPWRITE_SITES_KEY }}
+        run: bash tools/deploy_website.sh
