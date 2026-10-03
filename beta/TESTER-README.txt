@@ -1,4 +1,4 @@
-UNO Glass — Closed Beta {VERSION}
+Glint — Closed Beta {VERSION}
 =================================
 
 Thanks for testing! This build is confidential — please don't share it or
@@ -6,12 +6,12 @@ your invite code.
 
 GETTING STARTED
 1. Unzip this folder anywhere (keep all files together).
-2. Run UNO.exe.
+2. Run Glint.exe.
    Windows may show "Windows protected your PC" because the beta isn't
    code-signed yet: click "More info" -> "Run anyway".
 3. Main menu -> "Sign in / create account" -> "Create account".
    Server:       {SERVER}   (already filled in)
-   Invite code:  the UNO-XXXX-XXXX code you were sent (single use)
+   Invite code:  the GLINT-XXXX-XXXX code you were sent (single use)
 4. Play! Singleplayer and the Campaign work offline; Multiplayer, Friends
    and progress sync use the beta server.
 
@@ -27,7 +27,7 @@ FEEDBACK & BUGS
 UPDATES
 - When a new beta is out, the game tells you "Update required" and opens the
   download page. Your progress is kept (it's stored in your account and in
-  %APPDATA%\Godot\app_userdata\UNO Glass).
+  %APPDATA%\Godot\app_userdata\Glint).
 
 KNOWN LIMITATIONS
 - Windows only for now.

@@ -110,7 +110,7 @@ func TestBetaServer(t *testing.T) {
 	if e := c.waitFor("auth_error"); e["msg"] != errInviteNeeded.Error() {
 		t.Fatalf("expected invite needed, got %v", e)
 	}
-	c.send(map[string]any{"t": "register", "username": "Tester", "password": "pw123456", "invite": "UNO-NOPE-NOPE", "version": Version})
+	c.send(map[string]any{"t": "register", "username": "Tester", "password": "pw123456", "invite": "GLINT-NOPE-NOPE", "version": Version})
 	c.waitFor("auth_error")
 	c.send(map[string]any{"t": "register", "username": "Tester", "password": "pw123456", "invite": strings.ToLower(codes[0]), "version": Version})
 	ok := c.waitFor("auth_ok")

@@ -1,4 +1,4 @@
-"""Synthesizes every sound effect and music loop for UNO Glass.
+"""Synthesizes every sound effect and music loop for Glint.
 
 Pure Python (no dependencies). Run from the repo root:
     python tools/gen_audio.py

@@ -137,10 +137,10 @@ func newInviteCode() string {
 	for i := range b {
 		out[i] = alphabet[int(b[i])%len(alphabet)]
 	}
-	return "UNO-" + string(out[:4]) + "-" + string(out[4:])
+	return "GLINT-" + string(out[:4]) + "-" + string(out[4:])
 }
 
-// runInvitesCLI implements:  uno-server invites create|list|revoke ...
+// runInvitesCLI implements:  glint-server invites create|list|revoke ...
 func runInvitesCLI(args []string) error {
 	fs := flag.NewFlagSet("invites", flag.ExitOnError)
 	dataDir := fs.String("data", "data", "server data directory")
@@ -148,9 +148,9 @@ func runInvitesCLI(args []string) error {
 	note := fs.String("note", "", "note to remember who a code is for")
 	usage := func() {
 		fmt.Fprintln(os.Stderr, `usage:
-  uno-server invites create [-n 5] [-note "Sam"] [-data DIR]
-  uno-server invites list [-data DIR]
-  uno-server invites revoke [-data DIR] CODE|USERNAME`)
+  glint-server invites create [-n 5] [-note "Sam"] [-data DIR]
+  glint-server invites list [-data DIR]
+  glint-server invites revoke [-data DIR] CODE|USERNAME`)
 	}
 	if len(args) == 0 {
 		usage()

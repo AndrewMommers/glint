@@ -12,7 +12,7 @@ var results_hook: Callable
 
 const COLOR_ORDER := ["red", "yellow", "green", "blue", "wild"]
 const VALUE_ORDER := ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "skip", "reverse", "draw2", "wild", "wild4"]
-const EMOTES := ["GG", "Nice!", "Oops", "Hurry up!", "Wow", "Haha", "Good luck", "UNO? 👀"]
+const EMOTES := ["GG", "Nice!", "Oops", "Hurry up!", "Wow", "Haha", "Good luck", "GLINT? ✨"]
 
 var st: Dictionary = {}
 var me := ""
@@ -218,7 +218,7 @@ func _build_hud() -> void:
 
 	# Action buttons (bottom-right).
 	var actions := UI.vbox(10)
-	btn_uno = UI.button("UNO!", func() -> void: Net.send({"t": "uno"}), false, 200)
+	btn_uno = UI.button("GLINT!", func() -> void: Net.send({"t": "uno"}), false, 200)
 	UI.style_button(btn_uno, Color("ffb020"), 18)
 	btn_uno.add_theme_font_override("font", UI.font(900))
 	btn_uno.add_theme_font_size_override("font_size", 26)
@@ -227,16 +227,16 @@ func _build_hud() -> void:
 	btn_uno.add_theme_color_override("font_pressed_color", Color("1b1b2b"))
 	btn_uno.custom_minimum_size = Vector2(200, 64)
 	btn_uno.pivot_offset = Vector2(100, 32)
-	btn_uno.tooltip_text = "Call UNO (U)"
+	btn_uno.tooltip_text = "Call GLINT (G)"
 	btn_catch = UI.button("CATCH! +2", func() -> void: Net.send({"t": "catch"}), false, 200)
 	UI.style_button(btn_catch, UI.DANGER, 16)
 	btn_catch.add_theme_font_override("font", UI.font(800))
-	btn_catch.tooltip_text = "Someone forgot to call UNO! (C)"
+	btn_catch.tooltip_text = "Someone forgot to call GLINT! (C)"
 	btn_pass = UI.button("Keep & Pass", func() -> void: Net.send({"t": "pass"}), false, 200)
 	btn_pass.tooltip_text = "Keep the drawn card (P)"
 	btn_draw = UI.button("Draw", _do_draw, true, 200)
 	btn_draw.tooltip_text = "Draw a card (D)"
-	for pair in [[btn_catch, "C"], [btn_uno, "U"], [btn_pass, "P"], [btn_draw, "D"]]:
+	for pair in [[btn_catch, "C"], [btn_uno, "G"], [btn_pass, "P"], [btn_draw, "D"]]:
 		_key_hint(pair[0], pair[1])
 		actions.add_child(pair[0])
 	dock.name = "Actions"
@@ -325,15 +325,6 @@ func _build_turn_pill() -> void:
 	turn_pill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	turn_pill.visible = false
 	add_child(turn_pill)
-
-
-func _logo(sz: int) -> HBoxContainer:
-	var h := UI.hbox(0)
-	var cols := [UI.CARD_COLORS.red, UI.CARD_COLORS.yellow, UI.CARD_COLORS.green]
-	for i in 3:
-		var l := UI.label("UNO"[i], sz, 900, cols[i])
-		h.add_child(l)
-	return h
 
 
 func _build_banner() -> void:
@@ -739,8 +730,8 @@ func _process_events(events: Array) -> void:
 				text = "Everyone passed their hand"
 				big = "ROTATE!"
 			"uno":
-				text = "%s called UNO!" % _name(pid)
-				big = "UNO!"
+				text = "%s called GLINT!" % _name(pid)
+				big = "GLINT!"
 			"catch":
 				text = "%s caught %s! +%d" % [_name(pid), _name(tid), e.get("count", 2)]
 				big = "CAUGHT!"
@@ -968,7 +959,7 @@ func _unhandled_key_input(e: InputEvent) -> void:
 		KEY_P:
 			if btn_pass.visible:
 				Net.send({"t": "pass"})
-		KEY_U:
+		KEY_G, KEY_U:
 			if btn_uno.visible:
 				Net.send({"t": "uno"})
 		KEY_C:

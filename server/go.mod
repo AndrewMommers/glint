@@ -1,3 +1,3 @@
-module github.com/AndrewMommers/uno-glass/server
+module github.com/AndrewMommers/glint/server
 
 go 1.24

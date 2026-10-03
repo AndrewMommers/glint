@@ -36,7 +36,7 @@ static func server() -> String:
 
 
 static func download_url() -> String:
-	return _c().get_value("release", "download_url", "https://github.com/AndrewMommers/uno-glass/releases")
+	return _c().get_value("release", "download_url", "https://github.com/AndrewMommers/glint-beta/releases")
 
 
 static func channel() -> String:

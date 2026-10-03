@@ -5,7 +5,7 @@
 # in beta\server-data\appwrite.key  (that folder is ignored by git).
 $ErrorActionPreference = "Stop"
 $here = $PSScriptRoot
-$exe = Join-Path $here "uno-server.exe"
+$exe = Join-Path $here "glint-server.exe"
 Push-Location (Join-Path (Split-Path $here -Parent) "server")
 try { go build -o $exe . } finally { Pop-Location }
 $data = Join-Path $here "server-data"

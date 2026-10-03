@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 
-	"github.com/AndrewMommers/uno-glass/server/uno"
+	"github.com/AndrewMommers/glint/server/uno"
 )
 
 // Wire protocol: newline-delimited JSON objects over TCP. Every message has

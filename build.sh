@@ -3,5 +3,5 @@
 set -e
 cd "$(dirname "$0")/server"
 go test ./...
-go build -o ../client/bin/uno-server .
-echo "Built client/bin/uno-server"
+go build -o ../client/bin/glint-server .
+echo "Built client/bin/glint-server"

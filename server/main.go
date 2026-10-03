@@ -1,4 +1,4 @@
-// Command server is the authoritative UNO game server. Clients speak
+// Command server is the authoritative Glint game server. Clients speak
 // newline-delimited JSON over TCP (see protocol.go).
 package main
 
@@ -21,7 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/AndrewMommers/uno-glass/server/uno"
+	"github.com/AndrewMommers/glint/server/uno"
 )
 
 type Client struct {
@@ -387,7 +387,7 @@ func main() {
 	useAccounts := flag.Bool("accounts", true, "enable player accounts and friends")
 	idleExit := flag.Duration("idle-exit", 0, "exit after this long with no connected clients (0 = never); used for singleplayer")
 	useTLS := flag.Bool("tls", false, "encrypt connections with a self-signed certificate in <data>/tls (clients pin it)")
-	inviteOnly := flag.Bool("invite-only", false, "require an invite code to register (see: uno-server invites)")
+	inviteOnly := flag.Bool("invite-only", false, "require an invite code to register (see: glint-server invites)")
 	minClient := flag.String("min-client", "", "reject clients older than this version")
 	collectFeedback := flag.Bool("feedback", true, "store player feedback in <data>/feedback.jsonl")
 	showVersion := flag.Bool("version", false, "print the version and exit")
@@ -396,7 +396,7 @@ func main() {
 	awDB := flag.String("appwrite-db", "uno", "Appwrite TablesDB database id")
 
 	if len(os.Args) > 1 && os.Args[1] == "gencert" {
-		// uno-server gencert DATA_DIR : create the TLS certificate if missing
+		// glint-server gencert DATA_DIR : create the TLS certificate if missing
 		dir := "data"
 		if len(os.Args) > 2 {
 			dir = os.Args[2]
@@ -442,7 +442,7 @@ func main() {
 		tlsCfg = cfg
 		log.Printf("TLS on (plain allowed from this PC/LAN only); certificate %s (sha256 %s)", filepath.Join(*dataDir, "tls", "server.crt"), fp)
 	}
-	log.Printf("UNO server %s listening on %s", Version, ln.Addr())
+	log.Printf("Glint server %s listening on %s", Version, ln.Addr())
 	h := NewHub()
 	h.minClient = *minClient
 	if *inviteOnly {
@@ -463,7 +463,7 @@ func main() {
 			h.appwrite = NewAppwrite(*awEndpoint, *awProject, key, *awDB)
 			acc, err = OpenAccountsAppwrite(h.appwrite)
 			if err != nil {
-				log.Fatalf("appwrite: %v (did you run: uno-server appwrite-setup?)", err)
+				log.Fatalf("appwrite: %v (did you run: glint-server appwrite-setup?)", err)
 			}
 			log.Printf("accounts: Appwrite %s (project %s, %d players)", *awEndpoint, *awProject, len(acc.data.Users))
 		} else {

@@ -6,8 +6,8 @@ client/export/
 
 # Built server binaries
 client/bin/
-server/uno-server
-server/uno-server.exe
+server/glint-server
+server/glint-server.exe
 *.exe
 
 # Misc

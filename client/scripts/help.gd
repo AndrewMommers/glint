@@ -14,7 +14,7 @@ const BASICS := [
 	["Goal", "Be the first player to get rid of all your cards. The winner scores points for every card left in the other players' hands."],
 	["Your turn", "Match the top card of the pile by color, number or symbol, or play a Wild. Playable cards glow and lift up in your hand."],
 	["Can't play?", "Draw a card. If it's playable you may play it right away or keep it and pass."],
-	["UNO!", "When you're about to play your second-to-last card, press UNO!. Forget, and anyone can Catch you before the next player moves: you draw 2."],
+	["GLINT!", "When you're about to play your second-to-last card, press GLINT!. Forget, and anyone can Catch you before the next player moves: you draw 2."],
 	["Scoring", "Number cards are worth their face value, Skip / Reverse / +2 are 20, Wilds are 50. Matches can be a single round or first to 100 / 250 / 500."],
 ]
 
@@ -31,8 +31,8 @@ const CONTROLS := [
 	["Click a glowing card", "Play it (wilds ask for a color, Seven-O 7s ask for a player)"],
 	["D  /  Space", "Draw a card, or take a stacked penalty"],
 	["P", "Keep the card you drew and pass"],
-	["U", "Call UNO!"],
-	["C", "Catch a player who forgot to call UNO"],
+	["G", "Call GLINT!"],
+	["C", "Catch a player who forgot to call GLINT"],
 	["💬", "Send a quick reaction"],
 ]
 
@@ -41,8 +41,8 @@ const TIPS := [
 	"Dump high-value cards early. If someone else goes out, they count against you.",
 	"When the next player is down to one card, hit them with a +2, Skip or Reverse.",
 	"Change the color to one your opponents haven't been playing.",
-	"Press UNO! before you play your second-to-last card, not after someone notices.",
-	"Watch other players' card counts. A forgotten UNO is a free +2 for you.",
+	"Press GLINT! before you play your second-to-last card, not after someone notices.",
+	"Watch other players' card counts. A forgotten GLINT is a free +2 for you.",
 	"With Stacking on, holding a +4 is your insurance against a big pile.",
 	"In Seven-O, swap hands with whoever has the fewest cards.",
 	"Jump-in works on exact matches only: same color and same number or symbol.",
@@ -59,9 +59,9 @@ static func hint_for(st: Dictionary, me: String, playable: Array, hand: Array) -
 	if st.get("phase") != "playing":
 		return ""
 	if st.get("canCatch", false):
-		return "Someone forgot to call UNO! Catch them for +2 (C)"
+		return "Someone forgot to call GLINT! Catch them for +2 (C)"
 	if st.get("canUno", false):
-		return "Two cards left: call UNO! (U) before you play"
+		return "Two cards left: call GLINT! (G) before you play"
 	var my_turn: bool = st.get("turn") == me
 	var rules: Dictionary = st.get("settings", {}).get("rules", {})
 	if not my_turn:

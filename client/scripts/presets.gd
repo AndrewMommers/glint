@@ -2,10 +2,11 @@ class_name Presets
 extends RefCounted
 ## Rule presets: built-in ones plus player-saved ones (user://presets.cfg).
 ## A preset holds rules, match length and turn timer, and can be shared as a
-## short "UNO1:" code.
+## short "GLINT1:" code (older "UNO1:" codes still import).
 
 const PATH := "user://presets.cfg"
-const CODE_PREFIX := "UNO1:"
+const CODE_PREFIX := "GLINT1:"
+const OLD_PREFIXES := ["UNO1:"]
 
 const BUILTIN := [
 	{"name": "Classic", "desc": "Official rules, single round.", "targetScore": 0, "turnTime": 0,
@@ -104,9 +105,13 @@ static func encode(p: Dictionary) -> String:
 ## Returns the decoded preset, or {} if the code is invalid.
 static func decode(code: String) -> Dictionary:
 	code = code.strip_edges()
-	if not code.begins_with(CODE_PREFIX):
+	var prefix := ""
+	for p in [CODE_PREFIX] + OLD_PREFIXES:
+		if code.begins_with(p):
+			prefix = p
+	if prefix == "":
 		return {}
-	var raw := Marshalls.base64_to_utf8(code.substr(CODE_PREFIX.length()))
+	var raw := Marshalls.base64_to_utf8(code.substr(prefix.length()))
 	var data = JSON.parse_string(raw)
 	if data is Dictionary:
 		return normalize(data)

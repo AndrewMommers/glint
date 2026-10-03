@@ -1,16 +1,16 @@
-# Builds a closed-beta release of UNO Glass.
+# Builds a closed-beta release of Glint.
 #
 #   .\release.ps1 -Version 0.9.0-beta.1 -Server yourname.duckdns.org:7777 -Godot C:\path\to\Godot_v4.6.2-stable_win64.exe
 #   ... -Publish      also uploads it as a pre-release on GitHub (-BetaRepo, created public if missing)
 #
-# Produces dist\UNO-Glass-<version>-windows.zip containing UNO.exe, UNO.pck,
-# uno-server.exe (singleplayer) and README.txt. The build has the official
+# Produces dist\Glint-<version>-windows.zip containing Glint.exe, Glint.pck,
+# glint-server.exe (singleplayer) and README.txt. The build has the official
 # server address, its pinned TLS certificate and the version baked in.
 param(
     [Parameter(Mandatory = $true)][string]$Version,
     [Parameter(Mandatory = $true)][string]$Server,
     [Parameter(Mandatory = $true)][string]$Godot,
-    [string]$BetaRepo = "AndrewMommers/uno-glass-beta",
+    [string]$BetaRepo = "AndrewMommers/glint-beta",
     [switch]$Publish
 )
 $ErrorActionPreference = "Stop"
@@ -21,7 +21,7 @@ $downloadUrl = "https://github.com/$BetaRepo/releases/latest"
 
 # 1. Server binary + TLS certificate (created once, then reused forever).
 $beta = Join-Path $root "beta"
-$serverExe = Join-Path $beta "uno-server.exe"
+$serverExe = Join-Path $beta "glint-server.exe"
 $data = Join-Path $beta "server-data"
 (Get-Content (Join-Path $root "server\beta.go") -Raw) -replace 'const Version = "[^"]*"', "const Version = `"$Version`"" |
     Set-Content (Join-Path $root "server\beta.go") -NoNewline
@@ -49,12 +49,12 @@ try {
 }
 
 # 3. Package.
-$name = "UNO-Glass-$Version-windows"
+$name = "Glint-$Version-windows"
 $dist = Join-Path $root "dist"
 $stage = Join-Path $dist $name
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null
-Copy-Item (Join-Path $root "build\UNO.exe"), (Join-Path $root "build\UNO.pck"), (Join-Path $root "build\uno-server.exe") $stage
+Copy-Item (Join-Path $root "build\Glint.exe"), (Join-Path $root "build\Glint.pck"), (Join-Path $root "build\glint-server.exe") $stage
 (Get-Content (Join-Path $beta "TESTER-README.txt") -Raw) -replace '\{VERSION\}', $Version -replace '\{SERVER\}', $Server |
     Set-Content (Join-Path $stage "README.txt") -Encoding utf8
 $zip = Join-Path $dist "$name.zip"
@@ -66,9 +66,9 @@ Set-Content (Join-Path $beta "VERSION") $Version -NoNewline
 # Windows installer (Inno Setup, per-user, no admin).
 $iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
     Where-Object { Test-Path $_ } | Select-Object -First 1
-$setup = Join-Path $dist "UNO-Glass-Setup-$Version.exe"
+$setup = Join-Path $dist "Glint-Setup-$Version.exe"
 if ($iscc) {
-    & $iscc /Q "/DVersion=$Version" "/DBuildDir=$(Join-Path $root 'build')" "/DReadme=$(Join-Path $stage 'README.txt')" (Join-Path $root "installer\uno-glass.iss")
+    & $iscc /Q "/DVersion=$Version" "/DBuildDir=$(Join-Path $root 'build')" "/DReadme=$(Join-Path $stage 'README.txt')" (Join-Path $root "installer\glint.iss")
     if ($LASTEXITCODE) { throw "installer build failed" }
 } else {
     Write-Host "Inno Setup not found - skipping the installer (zip only)." -ForegroundColor Yellow
@@ -81,7 +81,7 @@ $body = if (Test-Path $custom) { Get-Content $custom -Raw } else { "Closed beta 
 @"
 $body
 
-**Install:** download **``UNO-Glass-Setup-$Version.exe``** and run it (no admin needed). Prefer no install? Use ``$name.zip``: unzip and run ``UNO.exe``.
+**Install:** download **``Glint-Setup-$Version.exe``** and run it (no admin needed). Prefer no install? Use ``$name.zip``: unzip and run ``Glint.exe``.
 You need an invite code to create an account. Ignore the "Source code" links. GitHub adds them automatically.
 
 SHA-256: ``$hash``
@@ -100,11 +100,11 @@ if ($Publish) {
     gh repo view $BetaRepo *> $null
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Creating $BetaRepo (builds only, no source)..."
-        gh repo create $BetaRepo --public --description "UNO Glass closed beta builds (invite only)" --add-readme | Out-Null
+        gh repo create $BetaRepo --public --description "Glint closed beta builds (invite only)" --add-readme | Out-Null
     }
     $assets = @($zip)
     if ($setup) { $assets = @($setup) + $assets }
-    gh release create "v$Version" @assets --repo $BetaRepo --prerelease --title "UNO Glass $Version (closed beta)" --notes-file $notes
+    gh release create "v$Version" @assets --repo $BetaRepo --prerelease --title "Glint $Version (closed beta)" --notes-file $notes
     git -C $root tag -f "v$Version" | Out-Null
     git -C $root push -f origin "v$Version" 2>$null | Out-Null
     Write-Host "Published: https://github.com/$BetaRepo/releases/tag/v$Version" -ForegroundColor Green

@@ -1,16 +1,16 @@
-# UNO Glass — Brand guidelines
+# Glint — Brand guidelines
 
 ![Social preview](png/social-preview-1280x640.png)
 
 ## Essence
 
-**Frosted glass, four bright cards, deep night backgrounds.**
-UNO Glass is the classic card game made calm, premium and modern. It should feel
+**Frosted glass, bright gem cards, a glint of light on deep night backgrounds.**
+Glint is a fast color-matching card game made calm, premium and modern. It should feel
 playful but polished, like a glass ornament in candy colors.
 
 - **Personality:** friendly, bright, a little cheeky ("Stack it or take +4"), never shouty.
 - **Visual pillars:** frosted glass panels · four-color card fan · soft glow on deep night · rounded everything.
-- **Voice:** short, warm, second person ("Your turn", "Dealing you in…"). Use exclamation marks for real moments only: UNO!, wins, level ups.
+- **Voice:** short, warm, second person ("Your turn", "Dealing you in…"). Use exclamation marks for real moments only: GLINT!, wins, level ups.
 
 ## Logo
 
@@ -25,14 +25,18 @@ playful but polished, like a glass ornament in candy colors.
 | Stacked lockup | `svg/lockup-stacked(-light).svg` | Posters, square spaces |
 
 **The emblem** is four cards fanned like a hand you're about to play. They run in deck
-order (Ruby, Amber, Jade, Azure), with the Azure card in front showing the "U" monogram,
-all in a frosted night tile.
+order (Ruby, Amber, Jade, Azure), with the Azure card in front showing the faceted
+**glass gem** and a small glint, all in a frosted night tile with a glint in the corner.
 
-**The wordmark** spells "UNO" in glossy glass-tube letters, one color per card, and ends
-with a small Azure card that works as its full stop. "GLASS" sits underneath in a
-monoline, widely letter-spaced face.
+**The wordmark** spells lowercase "glint" in glossy glass-tube letters, one color per
+letter (Ruby, Amber, Jade, Azure, Violet). The dot of the **i** is a four-point glint
+star. On dark backgrounds it's white with an amber halo; on light backgrounds it's amber.
 
-- **Clear space:** keep at least the height of the Azure card dot clear on every side.
+**The gem** is the card motif: a faceted glass rhombus at the center of every card face
+(four colored facets on wilds) and on every card back. It's what makes a Glint card
+recognizable, so don't swap it for other shapes.
+
+- **Clear space:** keep at least the height of the glint star clear on every side.
 - **Minimum sizes:**
   - Wordmark: 120 px wide on screen.
   - Emblem: 16 px. It's tuned to stay readable as a favicon.
@@ -40,14 +44,14 @@ monoline, widely letter-spaced face.
   - Don't recolor the letters or change their order.
   - Don't stretch, skew, or add outlines or drop shadows beyond the built-in ones.
   - Don't place the full-color wordmark on busy, mid-tone photos. Use the mono version.
-  - Don't set "UNO Glass" in a regular font as a substitute for the logo.
+  - Don't set "Glint" in a regular font as a substitute for the logo.
 
 ## Color
 
 | Name | Hex | RGB | Role |
 |---|---|---|---|
 | **Ruby** | `#FF4D6D` | 255 77 109 | Red cards, alerts, energy |
-| **Amber** | `#FFC23D` | 255 194 61 | Yellow cards, highlights, UNO calls |
+| **Amber** | `#FFC23D` | 255 194 61 | Yellow cards, highlights, GLINT calls |
 | **Jade** | `#22C983` | 34 201 131 | Green cards, success |
 | **Azure** | `#3D8BFF` | 61 139 255 | Blue cards, links |
 | **Violet** | `#8B6CFF` | 139 108 255 | Primary accent: buttons, XP, focus |
@@ -68,7 +72,7 @@ monoline, widely letter-spaced face.
   - Buttons and labels 600–700.
   - Body 500.
   - Section labels 700, all caps, 12 px, muted.
-- **Big moments:** SKIP, +4, UNO! and YOUR TURN use weight 900, with a soft dark outline.
+- **Big moments:** SKIP, +4, GLINT! and YOUR TURN use weight 900, with a soft dark outline.
 
 ## Glass recipe
 
@@ -94,7 +98,7 @@ The in-game implementation is `client/shaders/glass.gdshader`, and the logo shin
 ## Sound
 
 The sounds are soft synth and sine bells: short, rounded, never harsh. There's a gentle chime for your
-turn, a bright arpeggio for UNO, a fanfare for wins, and lo-fi music in the menus with upbeat synth-pop in game.
+turn, a bright arpeggio for GLINT, a fanfare for wins, and lo-fi music in the menus with upbeat synth-pop in game.
 Every sound comes from `tools/gen_audio.py`.
 
 ## Marketing assets
@@ -118,11 +122,15 @@ godot --headless --script tools/render_branding.gd -- .        # PNG renders
 python tools/gen_branding.py --ico                             # Windows icon
 ```
 
-## A note on the name
+## The name
 
-"UNO" is a registered trademark of Mattel. "UNO Glass" is fine as a working name for a
-private, non-commercial closed beta. Before any public or commercial release, rename the
-game and keep this visual system.
+The game was renamed from its working title to **Glint** so that it has its own, ownable
+identity. The name comes from the glint of light on glass, and the "one card left" call is
+**"GLINT!"**.
 
-The emblem, palette, glass style and motion don't depend on the name. Only the
-wordmark letters do, and they're generated in `tools/gen_branding.py`.
+Before a public or commercial launch, do a trademark search for "Glint" in games and
+software (IP Australia, USPTO and EUIPO), and consider registering it. Other companies use
+"Glint" in unrelated fields, so check the gaming classes (9, 28 and 41) specifically.
+
+The generic rules (match color or number, Skip, Reverse, Draw Two, Wild) are fine to use.
+Avoid any other card game's names, logos or signature card art.

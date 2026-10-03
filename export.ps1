@@ -1,7 +1,7 @@
 # Builds a standalone game into .\build:
-#   build\UNO.exe          - the game (double-click to play)
-#   build\UNO.pck          - game data
-#   build\uno-server.exe   - Go server, started automatically for singleplayer / hosting
+#   build\Glint.exe          - the game (double-click to play)
+#   build\Glint.pck          - game data
+#   build\glint-server.exe   - Go server, started automatically for singleplayer / hosting
 #
 # Usage:  .\export.ps1 -Godot "C:\path\to\Godot_v4.6.2-stable_win64.exe"
 #
@@ -17,7 +17,7 @@ New-Item -ItemType Directory -Force $build | Out-Null
 
 Write-Host "Building server..."
 Push-Location (Join-Path $root "server")
-try { go build -o (Join-Path $build "uno-server.exe") . } finally { Pop-Location }
+try { go build -o (Join-Path $build "glint-server.exe") . } finally { Pop-Location }
 
 $client = Join-Path $root "client"
 $version = (& $Godot --version 2>$null | Select-Object -First 1)
@@ -29,13 +29,13 @@ Write-Host "Importing project ($version)..."
 
 if ($hasTemplates) {
     Write-Host "Exporting release build..."
-    & $Godot --headless --path $client --export-release "Windows Desktop" (Join-Path $build "UNO.exe") | Out-Null
+    & $Godot --headless --path $client --export-release "Windows Desktop" (Join-Path $build "Glint.exe") | Out-Null
 } else {
     Write-Host "No export templates found - exporting game pack and using the Godot runtime..."
-    & $Godot --headless --path $client --export-pack "Windows Desktop" (Join-Path $build "UNO.pck") | Out-Null
-    Copy-Item $Godot (Join-Path $build "UNO.exe") -Force
+    & $Godot --headless --path $client --export-pack "Windows Desktop" (Join-Path $build "Glint.pck") | Out-Null
+    Copy-Item $Godot (Join-Path $build "Glint.exe") -Force
 }
 
-if (-not (Test-Path (Join-Path $build "UNO.pck"))) { throw "Export failed: build\UNO.pck was not created" }
+if (-not (Test-Path (Join-Path $build "Glint.pck"))) { throw "Export failed: build\Glint.pck was not created" }
 Write-Host ""
-Write-Host "Done. Play with: build\UNO.exe"
+Write-Host "Done. Play with: build\Glint.exe"

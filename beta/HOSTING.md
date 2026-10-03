@@ -15,7 +15,7 @@ You do these steps yourself: they change your router and firewall settings.
 3. **Allow it through Windows Firewall.** Run this once in an *Administrator*
    PowerShell:
    ```powershell
-   New-NetFirewallRule -DisplayName "UNO Glass beta server" -Direction Inbound -Protocol TCP -LocalPort 7777 -Action Allow
+   New-NetFirewallRule -DisplayName "Glint beta server" -Direction Inbound -Protocol TCP -LocalPort 7777 -Action Allow
    ```
 4. **Get an address for testers.** Your public IP is shown at <https://ifconfig.me>.
    Home IPs can change, so a free dynamic-DNS name is better
@@ -32,7 +32,7 @@ The server stores player accounts in your Appwrite project (`beta/appwrite.json`
 
 One-time setup:
 
-1. **Create an API key.** In the Appwrite console, open your project, then **Overview → API keys → Create API key**. Name it `uno-server`, with no expiry, and give it these scopes:
+1. **Create an API key.** In the Appwrite console, open your project, then **Overview → API keys → Create API key**. Name it `glint-server`, with no expiry, and give it these scopes:
    - **Auth:** `users.read`, `users.write`, `sessions.write`
    - **Database:** `databases.read`, `databases.write`, `tables.read`, `tables.write`,
      `columns.read`, `columns.write`, `indexes.read`, `indexes.write`, `rows.read`, `rows.write`

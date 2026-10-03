@@ -1,6 +1,6 @@
-UNO Glass - Closed Beta
+Glint - Closed Beta
 
-Thanks for helping test UNO Glass!
+Thanks for helping test Glint!
 
 - This is a confidential beta build. Please don't share the installer or
   your invite code.

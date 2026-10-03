@@ -1,14 +1,14 @@
-<p align="center"><img src="branding/png/social-preview-1280x640.png" alt="UNO Glass" width="100%"></p>
+<p align="center"><img src="branding/png/social-preview-1280x640.png" alt="Glint" width="100%"></p>
 
-# UNO Glass
+# Glint
 
-A modern UNO game with a **Go** authoritative game server and a **Godot 4.6** client with a frosted-glass (glassmorphism) UI.
+A modern color-matching card game with a **Go** authoritative game server and a **Godot 4.6** client with a frosted-glass (glassmorphism) UI.
 
 - **Singleplayer vs bots.** Easy, normal, and hard AI. The Go server runs quietly on your PC.
 - **Campaign.** 12 levels that ramp up the bots and house rules. Earn up to 3 stars per level.
 - **Multiplayer.** Host on your PC for friends on your LAN, or run a dedicated server. Rooms use 4-letter codes, and there's a room browser, a turn timer, quick reactions, and bot takeover when someone disconnects.
 - **House rules:** stacking, jump-in, Seven-O, draw-to-match, force play, custom starting hand, and match length (single round or first to 100/250/500).
-- **Rule presets.** Built-in presets (Classic, Party, No Mercy, Speed, Chaos, Marathon), your own saved presets, and shareable `UNO1:` codes. Load them in Quick Play or in any lobby you host. Guests can save the host's rules for their own lobbies.
+- **Rule presets.** Built-in presets (Classic, Party, No Mercy, Speed, Chaos, Marathon), your own saved presets, and shareable `GLINT1:` codes. Load them in Quick Play or in any lobby you host. Guests can save the host's rules for their own lobbies.
 - **How to Play and hints.** A full rules screen (basics, cards, house rules, controls), an in-game **Rules** panel showing the table's active rules, contextual gameplay hints (which you can turn off in Profile), and tips on loading screens.
 - **Accounts and friends.** Register and sign in on any server. Progression syncs to your account. Add friends by username, see who's online and at which table, invite friends to your lobby, and join their tables in one click.
 - **Sound and music.** Original synthesized sound effects for every card and action, plus two seamless music loops (menu and in-game). Volumes are mixed on separate Music, SFX and UI buses.
@@ -21,12 +21,12 @@ Requirements: [Go 1.22+](https://go.dev/dl/) and [Godot 4.6](https://godotengine
 
 ```powershell
 # 1. Build the server into the client folder (the game launches it for singleplayer/hosting)
-./build.ps1          # or: go -C server build -o ../client/bin/uno-server.exe .
+./build.ps1          # or: go -C server build -o ../client/bin/glint-server.exe .
 
 # 2. Open client/project.godot in Godot and press Play (F5)
 ```
 
-On macOS/Linux, run `./build.sh` instead (it builds `client/bin/uno-server`).
+On macOS/Linux, run `./build.sh` instead (it builds `client/bin/glint-server`).
 
 ### Closed beta
 
@@ -46,18 +46,18 @@ go run . -addr :7777
 
 Players open **Multiplayer**, enter `your-host:7777`, and then create or join a room. *Host on this PC* does the same thing on the local machine (port 7777, all interfaces). The lobby shows your LAN IPs so friends know where to connect.
 
-### Building the standalone game (UNO.exe)
+### Building the standalone game (Glint.exe)
 
 ```powershell
 .\export.ps1 -Godot "C:\path\to\Godot_v4.6.2-stable_win64.exe"
 ```
 
-This produces `build\UNO.exe`, `build\UNO.pck` and `build\uno-server.exe`. Double-click `UNO.exe` to play, and zip the `build` folder to share it.
+This produces `build\Glint.exe`, `build\Glint.pck` and `build\glint-server.exe`. Double-click `Glint.exe` to play, and zip the `build` folder to share it.
 
 - With Godot export templates installed (Editor → Manage Export Templates), the script does a proper, slimmer release export.
 - Without them, it uses the Godot binary as the runtime.
 
-When exporting manually, keep `uno-server.exe` **next to the game executable**. The client looks for it there, in `res://bin/`, and in `../server/`.
+When exporting manually, keep `glint-server.exe` **next to the game executable**. The client looks for it there, in `res://bin/`, and in `../server/`.
 
 ## How it fits together
 
@@ -72,11 +72,11 @@ When exporting manually, keep `uno-server.exe` **next to the game executable**. 
 - **The server is authoritative.** The client only sends intents (`play`, `draw`, `pass`, `uno`, `catch`, …). Every player gets their own view of the state with the other hands hidden, plus a list of events the client animates. The protocol is documented at the top of [`server/protocol.go`](server/protocol.go).
 - **`server/uno`** is the pure rules engine plus bot AI, with no networking. It's covered by tests, including thousands of simulated games across all 32 house-rule combinations.
 - **Each room runs on its own goroutine.** All of its state is touched only from that goroutine, and timers (bot thinking, turn timeouts, bot catches and jump-ins) are invalidated by a generation counter.
-- **Singleplayer** launches `uno-server -addr 127.0.0.1:7778 -idle-exit 30s` and connects to it, so solo and online play run the exact same rules.
+- **Singleplayer** launches `glint-server -addr 127.0.0.1:7778 -idle-exit 30s` and connects to it, so solo and online play run the exact same rules.
 
 ### Gameplay rules
 
-- **UNO calls.** Press **UNO!** (or `U`) when you're about to play your second-to-last card, or right after. If you forget, anyone can **Catch** you (`C`) for +2 until the next player acts. Bots call it, and catch you, based on their difficulty.
+- **GLINT calls.** Press **GLINT!** (or `G`) when you're about to play your second-to-last card, or right after. If you forget, anyone can **Catch** you (`C`) for +2 until the next player acts. Bots call it, and catch you, based on their difficulty.
 - **Drawing.** Draw (`D`/Space) when you can't or don't want to play. If the drawn card is playable you can play it or keep it and pass (`P`). Under force play, you must play it.
 - **Stacking.** +2 stacks on +2, and +4 stacks on +2 or +4. The first player who can't add to the stack draws all of it.
 - **Seven-O.** A 7 makes you pick a player to swap hands with. A 0 rotates every hand in the direction of play.
@@ -85,7 +85,7 @@ When exporting manually, keep `uno-server.exe` **next to the game executable**. 
 
 ### Accounts and friends
 
-Accounts live on whichever server you sign in to. To be friends, everyone signs in to the same server, for example the PC that uses **Host on this PC** or a dedicated `uno-server`.
+Accounts live on whichever server you sign in to. To be friends, everyone signs in to the same server, for example the PC that uses **Host on this PC** or a dedicated `glint-server`.
 
 - **Storage.** Accounts are kept in `<data>/accounts.json`. Set the folder with `-data`, and disable accounts with `-accounts=false`.
 - **Security.** Passwords are stored as salted PBKDF2-SHA256 hashes. Session tokens are random and stored hashed, so you stay signed in until you sign out.
@@ -97,7 +97,7 @@ Every sound and both music loops are generated by [`tools/gen_audio.py`](tools/g
 
 ### Progression
 
-Your progression is stored locally in `user://profile.cfg`. XP comes from playing rounds, winning, points scored, cards played, UNO calls and catches, and match wins. There are bonuses for multiplayer, hard bots, and first-time campaign clears. Campaign stars: ★ for a win, ★★ for scoring 50+ points, ★★★ for drawing 3 cards or fewer.
+Your progression is stored locally in `user://profile.cfg`. XP comes from playing rounds, winning, points scored, cards played, GLINT calls and catches, and match wins. There are bonuses for multiplayer, hard bots, and first-time campaign clears. Campaign stars: ★ for a win, ★★ for scoring 50+ points, ★★★ for drawing 3 cards or fewer.
 
 ## Project layout
 

@@ -4,8 +4,8 @@ config_version=5
 
 [application]
 
-config/name="UNO Glass"
-config/description="UNO with a Go game server and a glassmorphism Godot client."
+config/name="Glint"
+config/description="Glint, the glass color card game. Go game server, Godot client."
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 config/icon="res://icon.svg"

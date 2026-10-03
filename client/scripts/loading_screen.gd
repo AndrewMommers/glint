@@ -110,7 +110,7 @@ func _run() -> void:
 
 	await _step("Shuffling the deck…", 0.15)
 	for w in [400, 500, 600, 650, 700, 800, 900]:
-		UI.font(w).get_string_size("UNO 0123456789", HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
+		UI.font(w).get_string_size("Glint 0123456789", HORIZONTAL_ALIGNMENT_LEFT, -1, 18)
 	await _step("Polishing the glass…", 0.4)
 	# Draw a glass panel and some cards once so their shaders are compiled.
 	var warm := Control.new()

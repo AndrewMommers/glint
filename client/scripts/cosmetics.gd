@@ -35,7 +35,7 @@ const FRAMES := [
 
 const TITLES := [
 	[1, "Rookie"], [3, "Casual"], [5, "Regular"], [8, "Strategist"], [10, "Card Shark"],
-	[15, "Wild Master"], [20, "Stack Lord"], [25, "UNO Legend"], [35, "Grandmaster"], [50, "Mythic"],
+	[15, "Wild Master"], [20, "Stack Lord"], [25, "Glint Legend"], [35, "Grandmaster"], [50, "Mythic"],
 ]
 
 const R_NONE := {}

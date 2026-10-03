@@ -1,6 +1,6 @@
 class_name CardView
 extends Control
-## A single UNO card drawn entirely with vector primitives.
+## A single game card drawn entirely with vector primitives.
 
 signal clicked(view: CardView)
 
@@ -140,12 +140,48 @@ func _draw() -> void:
 	draw_set_transform(Vector2.ZERO)
 
 
-func _oval(c: Vector2, rx: float, ry: float, from: float = 0.0, to: float = TAU, n: int = 48) -> PackedVector2Array:
+## The card face motif: a faceted glass gem (rhombus) with soft corners.
+func _gem_points(c: Vector2, gw: float, gh: float) -> PackedVector2Array:
+	return PackedVector2Array([c + Vector2(0, -gh * 0.5), c + Vector2(gw * 0.5, 0), c + Vector2(0, gh * 0.5), c + Vector2(-gw * 0.5, 0)])
+
+
+func _draw_gem(c: Vector2, gw: float, gh: float, fill: Color, facet: Color, wild: bool = false, outline_only: bool = false) -> void:
+	var p := _gem_points(c, gw, gh)
+	var loop := p.duplicate()
+	loop.append(p[0])
+	var edge := gw * 0.08
+	if outline_only:
+		draw_polyline(loop, Color(fill, 0.25), edge * 2.6, true)
+		draw_polyline(loop, fill, edge * 0.7, true)
+	elif wild:
+		var keys := ["red", "yellow", "green", "blue"]
+		for i in 4:
+			draw_colored_polygon(PackedVector2Array([c, p[i], p[(i + 1) % 4]]), UI.CARD_COLORS[keys[i]])
+		draw_polyline(loop, Color.WHITE, edge * 0.6, true)
+	else:
+		draw_colored_polygon(p, fill)
+		draw_polyline(loop, fill, edge, true)
+		for q in p:
+			draw_circle(q, edge * 0.5, fill)
+	# facets: an inner gem joined to the corners, plus a highlight
+	var inner := _gem_points(c, gw * 0.5, gh * 0.5)
+	var iloop := inner.duplicate()
+	iloop.append(inner[0])
+	draw_colored_polygon(inner, Color(facet, 0.10))
+	draw_polyline(iloop, Color(facet, 0.3), maxf(1.0, gw * 0.03), true)
+	for i in 4:
+		draw_line(inner[i], p[i], Color(facet, 0.22), maxf(1.0, gw * 0.025), true)
+	draw_colored_polygon(PackedVector2Array([p[0], inner[3], inner[0]]), Color(1, 1, 1, 0.22 if wild else 0.0))
+
+
+## A four-point glint star.
+func _draw_sparkle(c: Vector2, r: float, col: Color) -> void:
 	var pts := PackedVector2Array()
-	for i in n + 1:
-		var a := lerpf(from, to, float(i) / n)
-		pts.append(c + Vector2(cos(a) * rx, sin(a) * ry).rotated(-0.42))
-	return pts
+	for i in 8:
+		var a := -PI * 0.5 + i * PI / 4.0
+		var rr := r if i % 2 == 0 else r * 0.24
+		pts.append(c + Vector2(cos(a), sin(a)) * rr)
+	draw_colored_polygon(pts, col)
 
 
 func _draw_back(c: Vector2) -> void:
@@ -167,20 +203,16 @@ func _draw_back(c: Vector2) -> void:
 		for i in 26:
 			draw_circle(inner.position + Vector2(rng.randf() * inner.size.x, rng.randf() * inner.size.y),
 				rng.randf_range(0.6, 1.8), Color(1, 1, 1, rng.randf_range(0.35, 0.9)))
+	var gw := W * 0.6
+	var gh := H * 0.6
 	if bd.get("rainbow", false):
-		var keys := ["red", "yellow", "green", "blue"]
-		for i in 4:
-			var pts := _oval(c, 38, 62, i * PI * 0.5, (i + 1) * PI * 0.5, 14)
-			pts.insert(0, c)
-			draw_colored_polygon(pts, UI.CARD_COLORS[keys[i]])
-		draw_colored_polygon(_oval(c, 24, 42), Color(bd.bg))
+		_draw_gem(c, gw, gh, Color.WHITE, Color.WHITE, true)
 	elif bd.has("oval"):
-		draw_colored_polygon(_oval(c, 36, 60), Color(bd.oval))
+		_draw_gem(c, gw, gh, Color(bd.oval), Color(bd.text))
 	if bd.has("outline"):
-		var o := _oval(c, 36, 60)
-		draw_polyline(o, Color(bd.outline), 3.0, true)
-		draw_polyline(o, Color(Color(bd.outline), 0.25), 9.0, true)
-	_text_centered("UNO", c, 30, Color(bd.text), 900, -0.42, 7)
+		_draw_gem(c, gw, gh, Color(bd.outline), Color(bd.outline), false, true)
+	# the glint
+	_draw_sparkle(c + Vector2(gw * 0.42, -gh * 0.42), 11.0, Color(1, 1, 1, 0.95))
 
 
 ## Pulls the four corners inward so a gradient fits inside the rounded border.
@@ -203,13 +235,9 @@ func _draw_face(c: Vector2) -> void:
 	var is_wild := value == "wild" or value == "wild4"
 
 	if is_wild:
-		var keys := ["red", "yellow", "green", "blue"]
-		for i in 4:
-			var pts := _oval(c, 34, 57, i * PI * 0.5, (i + 1) * PI * 0.5, 14)
-			pts.insert(0, c)
-			draw_colored_polygon(pts, UI.CARD_COLORS[keys[i]])
+		_draw_gem(c, W * 0.66, H * 0.64, Color.WHITE, Color.WHITE, true)
 	else:
-		draw_colored_polygon(_oval(c, 34, 57), Color.WHITE)
+		_draw_gem(c, W * 0.66, H * 0.64, Color.WHITE, col)
 
 	var big := _label_for(value)
 	match value:

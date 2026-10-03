@@ -84,15 +84,17 @@ func _on_message(msg: Dictionary) -> void:
 # ---- local server process ----
 
 func find_server_binary() -> String:
-	var exe := "uno-server.exe" if OS.get_name() == "Windows" else "uno-server"
-	var candidates := [
-		OS.get_executable_path().get_base_dir().path_join(exe),
-		ProjectSettings.globalize_path("res://bin").path_join(exe),
-		ProjectSettings.globalize_path("res://").path_join("../server").path_join(exe),
-	]
-	for p in candidates:
-		if FileAccess.file_exists(p):
-			return p
+	var ext := ".exe" if OS.get_name() == "Windows" else ""
+	for name in ["glint-server", "uno-server"]:  # uno-server: builds from before the rename
+		var exe: String = name + ext
+		var candidates := [
+			OS.get_executable_path().get_base_dir().path_join(exe),
+			ProjectSettings.globalize_path("res://bin").path_join(exe),
+			ProjectSettings.globalize_path("res://").path_join("../server").path_join(exe),
+		]
+		for p in candidates:
+			if FileAccess.file_exists(p):
+				return p
 	return ""
 
 
@@ -103,7 +105,7 @@ func start_local_server(port: int, lan: bool, accounts: bool = true) -> String:
 		return ""
 	var path := find_server_binary()
 	if path == "":
-		return "Server binary not found. Build it with:  go build -o client/bin/uno-server.exe ./server"
+		return "Server binary not found. Build it with:  go build -o client/bin/glint-server.exe ./server"
 	var addr := ("0.0.0.0:%d" if lan else "127.0.0.1:%d") % port
 	var data_dir := OS.get_user_data_dir().path_join("server-data")
 	var args := ["-addr", addr, "-idle-exit", "30s", "-data", data_dir, "-accounts=%s" % ("true" if accounts else "false")]

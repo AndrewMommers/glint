@@ -53,7 +53,7 @@ func generateCert(certPath, keyPath string) error {
 	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 120))
 	tmpl := &x509.Certificate{
 		SerialNumber:          serial,
-		Subject:               pkix.Name{CommonName: CertName, Organization: []string{"UNO Glass"}},
+		Subject:               pkix.Name{CommonName: CertName, Organization: []string{"Glint"}},
 		DNSNames:              []string{CertName},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().AddDate(10, 0, 0),

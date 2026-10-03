@@ -210,7 +210,7 @@ func (aw *Appwrite) ListAllRows(table string) ([]map[string]any, error) {
 	}
 }
 
-// ---- schema setup (uno-server appwrite-setup) ----
+// ---- schema setup (glint-server appwrite-setup) ----
 
 type awColumn struct {
 	Kind     string // varchar, text, mediumtext, integer
@@ -253,7 +253,7 @@ func (aw *Appwrite) Setup(logf func(string, ...any)) error {
 	// Check before creating: on plans with a database limit, creating an
 	// existing database fails with "limit reached" instead of "exists".
 	if err := aw.call("GET", "/tablesdb/"+url.PathEscape(aw.DB), nil, nil, "", nil); awStatus(err) == 404 {
-		err = aw.call("POST", "/tablesdb", map[string]any{"databaseId": aw.DB, "name": "UNO Glass"}, nil, "", nil)
+		err = aw.call("POST", "/tablesdb", map[string]any{"databaseId": aw.DB, "name": "Glint"}, nil, "", nil)
 		if err != nil && awStatus(err) != 409 {
 			return fmt.Errorf("create database: %w", err)
 		}
@@ -327,7 +327,7 @@ func (aw *Appwrite) waitColumn(table, key string) error {
 
 // runAppwriteSetup implements:
 //
-//	uno-server appwrite-setup -config beta/appwrite.json -data beta/server-data
+//	glint-server appwrite-setup -config beta/appwrite.json -data beta/server-data
 func runAppwriteSetup(args []string) error {
 	fs := flag.NewFlagSet("appwrite-setup", flag.ExitOnError)
 	cfgPath := fs.String("config", "appwrite.json", "JSON file with endpoint, project, database")

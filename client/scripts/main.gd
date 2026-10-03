@@ -661,7 +661,7 @@ func show_profile() -> void:
 	grid.add_theme_constant_override("v_separation", 12)
 	var tiles := [
 		[str(rounds), "Rounds played"], [str(s.wins), "Rounds won"], ["%d%%" % (100 * int(s.wins) / maxi(rounds, 1)), "Win rate"],
-		[str(s.best_streak), "Best win streak"], [str(s.cards_played), "Cards played"], [str(s.uno_calls), "UNO calls"],
+		[str(s.best_streak), "Best win streak"], [str(s.cards_played), "Cards played"], [str(s.uno_calls), "GLINT calls"],
 		[str(s.catches), "Players caught"], ["%d / %d" % [Profile.total_stars(), Cosmetics.STAGES.size() * 3], "Campaign stars"],
 	]
 	for t in tiles:
@@ -861,8 +861,8 @@ func _save_preset_dialog(s: Dictionary) -> void:
 
 func _import_preset_dialog(s: Dictionary, on_apply: Callable) -> void:
 	var body := UI.vbox(12)
-	body.add_child(UI.label("Paste a share code (starts with UNO1:)", 14, 500, UI.MUTED))
-	var code_edit := UI.line_edit("", "UNO1:…", 400)
+	body.add_child(UI.label("Paste a share code (starts with GLINT1:)", 14, 500, UI.MUTED))
+	var code_edit := UI.line_edit("", "GLINT1:…", 400)
 	body.add_child(code_edit)
 	var keep := {"on": true}
 	body.add_child(UI.toggle("Also save to my presets", "Keep it for future lobbies.", true, func(v: bool) -> void: keep.on = v))
@@ -1031,7 +1031,7 @@ func show_multiplayer() -> void:
 	_decor()
 	var p := _card(640)
 	var col := UI.vbox(16)
-	col.add_child(_header("Multiplayer", "Host a table on this PC for friends on your network, or connect to any UNO server.", show_menu))
+	col.add_child(_header("Multiplayer", "Host a table on this PC for friends on your network, or connect to any Glint server.", show_menu))
 
 	col.add_child(UI.section("Server"))
 	var row := UI.hbox(10)
@@ -1310,7 +1310,7 @@ func _award(st: Dictionary, t: Dictionary) -> Dictionary:
 	if t.played > 0:
 		rows.append(["Cards played ×%d" % t.played, t.played * 2])
 	if t.uno > 0:
-		rows.append(["UNO calls", t.uno * 5])
+		rows.append(["GLINT calls", t.uno * 5])
 	if t["catch"] > 0:
 		rows.append(["Players caught", t["catch"] * 10])
 	var target := int(st.get("settings", {}).get("targetScore", 0))
@@ -1484,7 +1484,7 @@ func _options_body() -> HBoxContainer:
 	left.add_child(scale)
 
 	right.add_child(UI.section("Gameplay"))
-	right.add_child(UI.toggle("Gameplay hints", "Tips above your hand, like when to call UNO.", Profile.prefs.get("hints", true),
+	right.add_child(UI.toggle("Gameplay hints", "Tips above your hand, like when to call GLINT.", Profile.prefs.get("hints", true),
 		func(on: bool) -> void:
 			Profile.prefs.hints = on
 			Profile.save()))
@@ -1599,7 +1599,7 @@ func show_account() -> void:
 		pw2.secret = true
 		col.add_child(pw2)
 		col.add_child(UI.section("Beta invite code"))
-		invite = UI.line_edit("", "UNO-XXXX-XXXX (from the developer)", 20)
+		invite = UI.line_edit("", "GLINT-XXXX-XXXX (from the developer)", 20)
 		col.add_child(invite)
 	var status := ""
 	if Online.status == "connecting":

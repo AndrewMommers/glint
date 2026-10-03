@@ -8,14 +8,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/AndrewMommers/uno-glass/server/uno"
+	"github.com/AndrewMommers/glint/server/uno"
 )
 
 const maxPlayers = 8
 
 var botNames = []string{"Nova", "Pixel", "Echo", "Luna", "Orbit", "Zephyr", "Iris", "Atlas", "Mochi", "Blitz", "Juno", "Kiwi"}
 
-var emotes = map[string]bool{"GG": true, "Nice!": true, "Oops": true, "Hurry up!": true, "Wow": true, "UNO? 👀": true, "Good luck": true, "Haha": true}
+var emotes = map[string]bool{"GG": true, "Nice!": true, "Oops": true, "Hurry up!": true, "Wow": true, "GLINT? ✨": true, "Good luck": true, "Haha": true}
 
 type seat struct {
 	id     string
@@ -378,7 +378,7 @@ func (r *Room) schedule() {
 			}
 		})
 	}
-	// Bots watching for a missed UNO or a jump-in chance.
+	// Bots watching for a missed GLINT call or a jump-in chance.
 	for i, s := range r.seats {
 		if !s.bot() {
 			continue

@@ -1,7 +1,7 @@
 class_name SeatView
 extends GlassPanel
 ## An opponent (or yourself) around the table: avatar with turn timer,
-## name, card count, a mini fan of card backs and UNO badges.
+## name, card count, a mini fan of card backs and GLINT badges.
 
 var player_id := ""
 var avatar := Avatar.new()
@@ -73,9 +73,9 @@ func update(p: Dictionary, active: bool, color: Color, time_frac: float, is_me: 
 	tint_alpha = 0.16 if active else 0.08
 
 	if p.get("vulnerable", false):
-		_set_badge("NO UNO!", UI.DANGER, Color.WHITE)
+		_set_badge("NO GLINT!", UI.DANGER, Color.WHITE)
 	elif cards == 1:
-		_set_badge("UNO", Color("ffd24a"), Color("1b1b2b"))
+		_set_badge("GLINT", Color("ffd24a"), Color("1b1b2b"))
 	else:
 		badge.visible = false
 

@@ -1,4 +1,4 @@
-"""UNO Glass brand assets — single source of truth.
+"""Glint brand assets — single source of truth.
 
 Writes every logo / icon / marketing SVG from shared components:
     python tools/gen_branding.py          # SVGs into branding/ and client/branding/
@@ -24,7 +24,7 @@ INDIGO = "#2A1B5E"
 NIGHT = "#161624"
 PALETTE = [
     ("Ruby", RUBY, "Red cards, alerts, energy"),
-    ("Amber", AMBER, "Yellow cards, highlights, UNO calls"),
+    ("Amber", AMBER, "Yellow cards, highlights, GLINT calls"),
     ("Jade", JADE, "Green cards, success"),
     ("Azure", AZURE, "Blue cards, links, calm"),
     ("Violet", VIOLET, "Primary accent, buttons, XP"),
@@ -64,7 +64,7 @@ def defs_tile(uid):
 
 
 def card(x, y, w, h, color, angle, px, py, face=None, shadow=True):
-    """A rounded UNO card rotated by angle around (px, py)."""
+    """A rounded game card rotated by angle around (px, py)."""
     r = w * 0.16
     bw = w * 0.07
     s = f'<g transform="rotate({angle} {px} {py})">'
@@ -75,15 +75,52 @@ def card(x, y, w, h, color, angle, px, py, face=None, shadow=True):
     # glossy diagonal sheen
     s += (f'<path d="M {x + bw} {y + r} Q {x + bw} {y + bw} {x + r} {y + bw} L {x + w - bw * 1.5} {y + bw} '
           f'L {x + bw} {y + h * 0.55} Z" fill="#FFFFFF" fill-opacity="0.12"/>')
-    if face == "oval":
-        s += f'<ellipse cx="{cx}" cy="{cy}" rx="{w * 0.30}" ry="{h * 0.33}" transform="rotate(-24 {cx} {cy})" fill="#FFFFFF"/>'
-    elif face == "U":
-        s += f'<ellipse cx="{cx}" cy="{cy}" rx="{w * 0.30}" ry="{h * 0.33}" transform="rotate(-24 {cx} {cy})" fill="#FFFFFF"/>'
-        k = w / 118
-        s += (f'<path d="M {cx - 22 * k} {cy - 34 * k} V {cy + 4 * k} A {22 * k} {22 * k} 0 0 0 {cx + 22 * k} {cy + 4 * k} '
-              f'V {cy - 34 * k}" fill="none" stroke="{color}" stroke-width="{17 * k}" stroke-linecap="round" stroke-linejoin="round"/>')
+    if face in ("gem", "glint"):
+        s += gem(cx, cy, w * 0.62, h * 0.62, color)
+        if face == "glint":
+            s += sparkle(cx + w * 0.27, cy - h * 0.31, w * 0.13, "#FFFFFF")
+    elif face == "wild":
+        s += gem(cx, cy, w * 0.62, h * 0.62, color, wild=True)
     s += "</g>"
     return s
+
+
+def gem(cx, cy, gw, gh, color, wild=False, fill="#FFFFFF"):
+    """A faceted glass gem (rounded rhombus) - the card face motif."""
+    t, rt, b, l = (cx, cy - gh / 2), (cx + gw / 2, cy), (cx, cy + gh / 2), (cx - gw / 2, cy)
+    pts = lambda *ps: " ".join(f"{x},{y}" for x, y in ps)
+    sw = gw * 0.08
+    out = ""
+    if wild:
+        for (a, c), col in zip(((t, rt), (rt, b), (b, l), (l, t)), (RUBY, AMBER, JADE, AZURE)):
+            out += f'<polygon points="{pts((cx, cy), a, c)}" fill="{col}" stroke="{col}" stroke-width="{sw}" stroke-linejoin="round"/>'
+        out += f'<polygon points="{pts(t, rt, b, l)}" fill="none" stroke="#FFFFFF" stroke-width="{sw * 0.6}" stroke-linejoin="round"/>'
+    else:
+        out += f'<polygon points="{pts(t, rt, b, l)}" fill="{fill}" stroke="{fill}" stroke-width="{sw}" stroke-linejoin="round"/>'
+    # facets: an inner gem and lines to the corners
+    k = 0.5
+    it, irt, ib, il = ((cx + (x - cx) * k, cy + (y - cy) * k) for x, y in (t, rt, b, l))
+    fc = "#FFFFFF" if wild else color
+    out += f'<polygon points="{pts(it, irt, ib, il)}" fill="{fc}" fill-opacity="0.10" stroke="{fc}" stroke-opacity="0.28" stroke-width="{sw * 0.35}" stroke-linejoin="round"/>'
+    for (x1, y1), (x2, y2) in ((it, t), (irt, rt), (ib, b), (il, l)):
+        out += f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" stroke="{fc}" stroke-opacity="0.22" stroke-width="{sw * 0.3}"/>'
+    # glass highlight on the upper-left facet
+    out += f'<polygon points="{pts(t, il, l)}" fill="#FFFFFF" fill-opacity="{0.25 if wild else 0.0}"/>'
+    return out
+
+
+def sparkle(cx, cy, r, color, glow=None):
+    """A four-point glint star."""
+    out = ""
+    q = r * 0.16
+    if glow:  # soft halo: a bigger, translucent star behind
+        for scale, op in ((1.55, 0.18), (1.25, 0.35)):
+            R, Q = r * scale, q * scale
+            out += (f'<path d="M {cx} {cy - R} Q {cx + Q} {cy - Q} {cx + R} {cy} Q {cx + Q} {cy + Q} {cx} {cy + R} '
+                    f'Q {cx - Q} {cy + Q} {cx - R} {cy} Q {cx - Q} {cy - Q} {cx} {cy - R} Z" fill="{glow}" fill-opacity="{op}"/>')
+    out += (f'<path d="M {cx} {cy - r} Q {cx + q} {cy - q} {cx + r} {cy} Q {cx + q} {cy + q} {cx} {cy + r} '
+            f'Q {cx - q} {cy + q} {cx - r} {cy} Q {cx - q} {cy - q} {cx} {cy - r} Z" fill="{color}"/>')
+    return out
 
 
 def fan(cx, cy, size=1.0, faces=True):
@@ -92,7 +129,7 @@ def fan(cx, cy, size=1.0, faces=True):
     px, py = cx, cy + 165 * size
     out = ""
     for color, ang in ((RUBY, -27), (AMBER, -9), (JADE, 9), (AZURE, 27)):
-        face = "U" if (faces and color == AZURE) else None
+        face = "glint" if (faces and color == AZURE) else None
         out += card(cx - w / 2, cy - h / 2, w, h, color, ang, px, py, face)
     return out
 
@@ -111,6 +148,7 @@ def emblem_svg(tile=True, size=512):
   <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#{uid}gloss)"/>
   <rect x="17.5" y="17.5" width="477" height="477" rx="110.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.32" stroke-width="3"/>"""
     body += fan(256, 238, 1.0)
+    body += sparkle(408, 104, 34, "#FFFFFF", glow=AMBER if tile else None)
     return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{size}" height="{size}" viewBox="0 0 512 512">
 <defs>{defs_tile(uid)}
 </defs>{body}
@@ -118,40 +156,33 @@ def emblem_svg(tile=True, size=512):
 """
 
 
-# Wordmark: "UNO" as glossy glass tubes + a blue card "dot", "GLASS" monoline.
-UNO_LETTERS = [
-    ("M 80 70 V 190 A 75 75 0 0 0 230 190 V 70", RUBY),
-    ("M 330 270 V 70 L 480 270 V 70", AMBER),
-    ("M 655 70 A 95 100 0 1 1 654.9 70 Z", JADE),
+# Wordmark: lowercase "glint" as glossy glass tubes, one card color per
+# letter; the dot of the i is a glint (sparkle).
+LETTERS = [
+    ("M 130 220 A 70 70 0 1 0 270 220 A 70 70 0 1 0 130 220 Z M 270 150 V 315 Q 270 370 215 370 Q 175 370 150 352", RUBY),
+    ("M 360 60 V 290", AMBER),
+    ("M 450 150 V 290", JADE),
+    ("M 540 290 V 150 M 540 220 Q 540 150 610 150 Q 680 150 680 220 V 290", AZURE),
+    ("M 770 80 V 250 Q 770 290 810 290 H 830 M 725 150 H 830", VIOLET),
 ]
-GLASS_LETTERS = [
-    "M 332 318 A 17 22 0 1 0 334 340 H 320",
-    "M 376 310 V 354 H 404",
-    "M 446 354 L 463 310 L 480 354 M 453 339 H 473",
-    "M 550 316 C 544 309 524 308 522 320 C 520 332 552 330 552 344 C 552 357 528 357 520 348",
-    "M 624 316 C 618 309 598 308 596 320 C 594 332 626 330 626 344 C 626 357 602 357 594 348",
-]
+SPARKLE = (450, 70, 46)  # the i's dot
 
 
 def wordmark_group(mono=None, subtitle=True, sub_color="#FFFFFF"):
-    """mono: None for full color, or a single hex color."""
-    g = ""
-    for d, col in UNO_LETTERS:
+    """mono: None for full color, or a single hex color. (subtitle kept for API compatibility.)"""
+    g = '<g transform="translate(18 0)">'
+    for d, col in LETTERS:
         c = mono or col
         g += f'<path d="{d}" fill="none" stroke="#000" stroke-opacity="0.25" stroke-width="74" stroke-linecap="round" stroke-linejoin="round" transform="translate(0 9)"/>'
         g += f'<path d="{d}" fill="none" stroke="{c}" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>'
         if not mono:
             g += f'<path d="{d}" fill="none" stroke="{lighten(col, 0.28)}" stroke-opacity="0.55" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>'
             g += f'<path d="{d}" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" transform="translate(-9 -11)"/>'
-    # the blue card dot
-    if mono:
-        g += (f'<g transform="rotate(14 845 205)"><rect x="800" y="140" width="90" height="130" rx="15" fill="{mono}"/>'
-              f'</g>')
-    else:
-        g += card(800, 140, 90, 130, AZURE, 14, 845, 205, "oval")
-    if subtitle:
-        for d in GLASS_LETTERS:
-            g += f'<path d="{d}" transform="translate(30 34)" fill="none" stroke="{sub_color}" stroke-opacity="0.88" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>'
+    x, y, rad = SPARKLE
+    on_light = sub_color.upper() != "#FFFFFF"
+    star = mono or (darken(AMBER, 0.08) if on_light else "#FFFFFF")
+    g += sparkle(x, y, rad, star, glow=None if (mono or on_light) else AMBER)
+    g += "</g>"
     return g
 
 
@@ -205,7 +236,7 @@ def scatter_cards(w, h, seed=3, n=9, alpha=0.5):
         if abs(x + cw / 2 - w / 2) < w * 0.36 and abs(y + ch / 2 - h / 2) < h * 0.46:
             continue
         col = colors[i % len(colors)]
-        s += card(x, y, cw, ch, col, rnd.uniform(-40, 40), x + cw / 2, y + ch / 2, "oval" if col != NIGHT else None)
+        s += card(x, y, cw, ch, col, rnd.uniform(-40, 40), x + cw / 2, y + ch / 2, "gem" if col != NIGHT else None)
     return s + "</g>"
 
 
@@ -261,13 +292,13 @@ def brand_board():
     w, h = 1800, 1200
     s = background(w, h, "bb", 0.8)
     font = "font-family=\"Inter, 'Segoe UI', Helvetica, Arial, sans-serif\""
-    s += f'<text x="80" y="110" {font} font-size="56" font-weight="800" fill="#fff">UNO Glass — Brand board</text>'
-    s += f'<text x="80" y="155" {font} font-size="22" fill="#fff" fill-opacity="0.65">Frosted glass, four bright cards, deep night backgrounds. Playful, clean, modern.</text>'
+    s += f'<text x="80" y="110" {font} font-size="56" font-weight="800" fill="#fff">Glint — Brand board</text>'
+    s += f'<text x="80" y="155" {font} font-size="22" fill="#fff" fill-opacity="0.65">Frosted glass, bright gem cards, a glint of light. Playful, clean, modern.</text>'
     # logo panel
     s += glass_panel(80, 200, 1000, 470, 36)
     s += f'<g transform="translate(120 260) scale(0.62)">{emblem_svg(True).split(">", 1)[1].rsplit("</svg>", 1)[0]}</g>'
     s += f'<g transform="translate(470 330) scale(0.58)">{wordmark_group()}</g>'
-    s += f'<text x="120" y="640" {font} font-size="18" fill="#fff" fill-opacity="0.6">Primary lockup · emblem + wordmark · clear space = height of the blue card dot</text>'
+    s += f'<text x="120" y="640" {font} font-size="18" fill="#fff" fill-opacity="0.6">Primary lockup · emblem + wordmark · clear space = height of the glint</text>'
     # app icon sizes
     s += glass_panel(1120, 200, 600, 470, 36)
     x = 1160

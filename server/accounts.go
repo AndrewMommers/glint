@@ -621,7 +621,7 @@ func rowToUser(row map[string]any) *User {
 
 // Appwrite logins use an email; players only have usernames, so each gets a
 // stable internal address (no mail is ever sent to it).
-func playerEmail(k string) string { return k + "@players.unoglass.app" }
+func playerEmail(k string) string { return k + "@players.glintgame.app" }
 
 // awUserError turns Appwrite auth errors into player-facing messages.
 func awUserError(err error, fallback error) error {

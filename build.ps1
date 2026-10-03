@@ -3,8 +3,8 @@ $ErrorActionPreference = "Stop"
 Push-Location "$PSScriptRoot\server"
 try {
     go test ./...
-    go build -o ..\client\bin\uno-server.exe .
-    Write-Host "Built client\bin\uno-server.exe"
+    go build -o ..\client\bin\glint-server.exe .
+    Write-Host "Built client\bin\glint-server.exe"
 } finally {
     Pop-Location
 }

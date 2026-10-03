@@ -41,8 +41,8 @@ func (r Rules) Normalize() Rules {
 
 type Player struct {
 	Hand        []Card
-	UnoDeclared bool // pressed UNO while holding two cards, before playing
-	Vulnerable  bool // down to one card without calling UNO - can be caught
+	UnoDeclared bool // called GLINT while holding two cards, before playing
+	Vulnerable  bool // down to one card without calling GLINT - can be caught
 }
 
 // Event describes something that happened, for clients to animate.
@@ -180,7 +180,7 @@ func (g *Game) give(pi, n int) int {
 	return got
 }
 
-// The window to catch a missing UNO closes as soon as anyone acts.
+// The window to catch a missing GLINT call closes as soon as anyone acts.
 func (g *Game) closeCatchWindow() {
 	for _, p := range g.Players {
 		p.Vulnerable = false
@@ -199,7 +199,7 @@ func (g *Game) checkTurn(pi int) error {
 
 // Play puts a card from player pi's hand on the discard pile.
 // chosen is the color for wild cards, target the swap partner for a 7 under
-// Seven-O (-1 picks automatically), and uno declares UNO along with the play.
+// Seven-O (-1 picks automatically), and uno declares GLINT along with the play.
 func (g *Game) Play(pi, cardID int, chosen Color, target int, uno bool) ([]Event, error) {
 	if g.Winner >= 0 {
 		return nil, ErrGameOver
@@ -404,7 +404,7 @@ func (g *Game) Pass(pi int) ([]Event, error) {
 	return []Event{{Kind: "pass", Player: pi, Target: -1}}, nil
 }
 
-// DeclareUno either pre-arms UNO (two cards, your turn) or saves a player who
+// DeclareUno either pre-arms the GLINT call (two cards, your turn) or saves a player who
 // already went down to one card without calling it.
 func (g *Game) DeclareUno(pi int) ([]Event, error) {
 	if g.Winner >= 0 {
@@ -422,7 +422,7 @@ func (g *Game) DeclareUno(pi int) ([]Event, error) {
 	return nil, ErrNothingToDo
 }
 
-// Catch penalises any opponent of catcher who forgot to call UNO.
+// Catch penalises any opponent of catcher who forgot to call GLINT.
 func (g *Game) Catch(catcher int) ([]Event, error) {
 	if g.Winner >= 0 {
 		return nil, ErrGameOver

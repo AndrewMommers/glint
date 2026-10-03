@@ -18,6 +18,7 @@ var prefs := {"hints": true}
 
 
 func _ready() -> void:
+	_migrate_old_user_data()
 	var cf := ConfigFile.new()
 	if cf.load(PATH) != OK:
 		return
@@ -34,6 +35,21 @@ func _ready() -> void:
 	var c = cf.get_value("progress", "campaign", {})
 	if c is Dictionary:
 		campaign = c
+
+
+## The game used to be called "UNO Glass", which kept its data in a sibling
+## folder. Copy anything we don't have yet, once. (Profile is the first
+## autoload that reads user data, so this runs before anything else does.)
+static func _migrate_old_user_data() -> void:
+	var new_dir := OS.get_user_data_dir()
+	var old_dir := new_dir.get_base_dir().path_join("UNO Glass")
+	if not DirAccess.dir_exists_absolute(old_dir):
+		return
+	for f in ["profile.cfg", "settings.cfg", "options.cfg", "account.cfg", "presets.cfg"]:
+		var src := old_dir.path_join(f)
+		var dst := new_dir.path_join(f)
+		if FileAccess.file_exists(src) and not FileAccess.file_exists(dst):
+			DirAccess.copy_absolute(src, dst)
 
 
 func save() -> void:

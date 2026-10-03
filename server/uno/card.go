@@ -1,4 +1,6 @@
-// Package uno implements the rules of UNO, independent of networking.
+// Package uno implements the card game rules (the classic shedding game:
+// match color or number, action cards, wilds), independent of networking.
+// The package name is historical; nothing player-facing uses it.
 package uno
 
 import (
@@ -83,7 +85,7 @@ func (c Card) Points() int {
 	}
 }
 
-// NewDeck returns the standard 108-card UNO deck, shuffled.
+// NewDeck returns the standard 108-card deck, shuffled.
 func NewDeck(rng *rand.Rand) []Card {
 	deck := make([]Card, 0, 108)
 	add := func(c Color, v Value) {
