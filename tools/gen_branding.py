@@ -243,6 +243,19 @@ def poster(w, h, uid, scale=1.0, cards=True, with_panel=False):
     return f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">\n{body}\n</svg>\n'
 
 
+def installer_side(w=328, h=628):
+    """Tall wizard image (Inno Setup WizardImageFile, 164x314 @2x)."""
+    body = background(w, h, "is", 1.2)
+    body += f'<g transform="translate({w / 2} {h * 0.34}) scale(0.5) translate(-256 -238)">{fan(256, 238, 1.0)}</g>'
+    body += f'<g transform="translate({w / 2 - 490 * 0.3} {h * 0.62}) scale(0.3)">{wordmark_group()}</g>'
+    return f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">\n{body}\n</svg>\n'
+
+
+def installer_back(w=1200, h=900):
+    """Soft aurora behind the wizard pages (WizardBackImageFile)."""
+    return f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}">\n{background(w, h, "ib", 0.55)}\n</svg>\n'
+
+
 def brand_board():
     """A guidelines board (uses SVG text — view in a browser / on GitHub)."""
     w, h = 1800, 1200
@@ -307,6 +320,8 @@ def build_svgs():
         "capsule-630x500.svg": poster(630, 500, "c1", 1.45, cards=True),
         "capsule-460x215.svg": poster(460, 215, "c2", 1.25, cards=False),
         "brand-board.svg": brand_board(),
+        "installer-side.svg": installer_side(),
+        "installer-back.svg": installer_back(),
     }
     for name, svg in files.items():
         write(os.path.join(OUT, "svg", name), svg)

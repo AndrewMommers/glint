@@ -27,6 +27,9 @@ const JOBS := [
 	["key-art-1920x1080.svg", "key-art-1920x1080.png", 1920],
 	["capsule-630x500.svg", "capsule-630x500.png", 630],
 	["capsule-460x215.svg", "capsule-460x215.png", 460],
+	["installer-side.svg", "installer-side.png", 328],
+	["installer-back.svg", "installer-back.png", 1200],
+	["emblem.svg", "installer-small.png", 110],
 ]
 
 

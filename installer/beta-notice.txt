@@ -1,0 +1,14 @@
+UNO Glass - Closed Beta
+
+Thanks for helping test UNO Glass!
+
+- This is a confidential beta build. Please don't share the installer or
+  your invite code.
+- To play online, create an account in the game (Main menu -> Sign in /
+  create account) using the invite code you were sent.
+- Found a bug or have an idea? Use "Feedback" in the main menu. Your game
+  version and log are attached automatically.
+- New builds: the game tells you when an update is required. Just run the
+  new installer; your progress is kept.
+
+Singleplayer and the Campaign work offline.
