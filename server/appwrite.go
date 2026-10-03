@@ -250,16 +250,26 @@ var awTables = []struct {
 // Setup creates the database, tables, columns and indexes if missing.
 // Tables have no client permissions: only the server (API key) can access them.
 func (aw *Appwrite) Setup(logf func(string, ...any)) error {
-	err := aw.call("POST", "/tablesdb", map[string]any{"databaseId": aw.DB, "name": "UNO Glass"}, nil, "", nil)
-	if err != nil && awStatus(err) != 409 {
-		return fmt.Errorf("create database: %w", err)
+	// Check before creating: on plans with a database limit, creating an
+	// existing database fails with "limit reached" instead of "exists".
+	if err := aw.call("GET", "/tablesdb/"+url.PathEscape(aw.DB), nil, nil, "", nil); awStatus(err) == 404 {
+		err = aw.call("POST", "/tablesdb", map[string]any{"databaseId": aw.DB, "name": "UNO Glass"}, nil, "", nil)
+		if err != nil && awStatus(err) != 409 {
+			return fmt.Errorf("create database: %w", err)
+		}
+	} else if err != nil {
+		return fmt.Errorf("database %q: %w", aw.DB, err)
 	}
 	logf("database %q ready", aw.DB)
 	for _, t := range awTables {
-		err := aw.call("POST", "/tablesdb/"+aw.DB+"/tables", map[string]any{
-			"tableId": t.ID, "name": t.Name, "permissions": []string{}, "rowSecurity": false}, nil, "", nil)
-		if err != nil && awStatus(err) != 409 {
-			return fmt.Errorf("create table %s: %w", t.ID, err)
+		if err := aw.call("GET", aw.tablePath(t.ID), nil, nil, "", nil); awStatus(err) == 404 {
+			err = aw.call("POST", "/tablesdb/"+url.PathEscape(aw.DB)+"/tables", map[string]any{
+				"tableId": t.ID, "name": t.Name, "permissions": []string{}, "rowSecurity": false}, nil, "", nil)
+			if err != nil && awStatus(err) != 409 {
+				return fmt.Errorf("create table %s: %w", t.ID, err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("table %s: %w", t.ID, err)
 		}
 		for _, c := range t.Columns {
 			body := map[string]any{"key": c.Key, "required": c.Required}

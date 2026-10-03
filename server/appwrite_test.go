@@ -21,11 +21,12 @@ type fakeAppwrite struct {
 	sessions map[string]string         // secret -> user id
 	tables   map[string]map[string]map[string]any
 	columns  int
+	dbs      map[string]bool
 }
 
 func newFakeAppwrite(key string) *fakeAppwrite {
 	return &fakeAppwrite{key: key, users: map[string]map[string]any{}, sessions: map[string]string{},
-		tables: map[string]map[string]map[string]any{}}
+		tables: map[string]map[string]map[string]any{}, dbs: map[string]bool{}}
 }
 
 func rid() string {
@@ -104,7 +105,24 @@ func (f *fakeAppwrite) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		fail(401, "user_invalid_credentials", "Invalid credentials")
 	case p == "/tablesdb" && r.Method == "POST":
+		if len(f.dbs) > 0 { // free plan: one database, and Appwrite says "limit" not "exists"
+			fail(403, "additional_resource_not_allowed", "The maximum number of databases allowed for the selected plan has reached.")
+			return
+		}
+		f.dbs[body["databaseId"].(string)] = true
 		reply(201, map[string]any{"$id": body["databaseId"]})
+	case len(parts) == 2 && parts[0] == "tablesdb" && r.Method == "GET":
+		if f.dbs[parts[1]] {
+			reply(200, map[string]any{"$id": parts[1]})
+		} else {
+			fail(404, "database_not_found", "no db")
+		}
+	case len(parts) == 4 && parts[0] == "tablesdb" && parts[2] == "tables" && r.Method == "GET":
+		if f.tables[parts[3]] != nil {
+			reply(200, map[string]any{"$id": parts[3]})
+		} else {
+			fail(404, "table_not_found", "no table")
+		}
 	case len(parts) == 3 && parts[0] == "tablesdb" && parts[2] == "tables" && r.Method == "POST":
 		t := body["tableId"].(string)
 		if f.tables[t] != nil {

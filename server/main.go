@@ -12,10 +12,12 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -474,13 +476,24 @@ func main() {
 		h.accounts = acc
 	}
 
+	h.lastAct.Store(time.Now().Unix()) // idle time counts from when we're ready
+
+	// Save pending account changes before exiting (Ctrl+C, service stop).
+	shutdown := func(why string) {
+		log.Printf("%s; saving and exiting", why)
+		h.accounts.Flush(15 * time.Second)
+		os.Exit(0)
+	}
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+	go func() { shutdown(fmt.Sprint("received ", <-sig)) }()
+
 	if *idleExit > 0 {
 		go func() {
 			for range time.Tick(time.Second) {
 				idle := time.Since(time.Unix(h.lastAct.Load(), 0))
 				if h.clients.Load() == 0 && idle > *idleExit {
-					log.Printf("no clients for %s, exiting", *idleExit)
-					os.Exit(0)
+					shutdown(fmt.Sprintf("no clients for %s", *idleExit))
 				}
 			}
 		}()

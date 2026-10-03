@@ -29,10 +29,11 @@ type Accounts struct {
 	data   accountsFile
 	online map[string]map[*Client]bool // user key -> connected clients
 
-	aw    *Appwrite
-	byAw  map[string]string // Appwrite user id -> user key
-	dirty map[string]bool   // user keys waiting to be written to Appwrite
-	kick  chan struct{}
+	aw      *Appwrite
+	byAw    map[string]string // Appwrite user id -> user key
+	dirty   map[string]bool   // user keys waiting to be written to Appwrite
+	kick    chan struct{}
+	flushMu sync.Mutex // serializes background writes and shutdown flushes
 }
 
 type accountsFile struct {
@@ -496,26 +497,7 @@ func (a *Accounts) commit(keys ...string) error {
 // bursts of changes and retrying failures.
 func (a *Accounts) writer() {
 	for range a.kick {
-		a.mu.Lock()
-		batch := map[string]map[string]any{}
-		for k := range a.dirty {
-			if u := a.data.Users[k]; u != nil {
-				batch[k] = userRow(u)
-			}
-		}
-		a.dirty = map[string]bool{}
-		a.mu.Unlock()
-		failed := false
-		for k, row := range batch {
-			if err := a.aw.UpdateRow("players", k, row); err != nil {
-				log.Printf("appwrite: saving %s: %v", k, err)
-				a.mu.Lock()
-				a.dirty[k] = true
-				a.mu.Unlock()
-				failed = true
-			}
-		}
-		if failed {
+		if a.writeDirty() > 0 {
 			time.AfterFunc(5*time.Second, func() {
 				select {
 				case a.kick <- struct{}{}:
@@ -525,6 +507,74 @@ func (a *Accounts) writer() {
 		}
 	}
 }
+
+// writeDirty saves every dirty player in parallel and returns how many
+// failed (they stay dirty for a retry).
+func (a *Accounts) writeDirty() int {
+	a.flushMu.Lock()
+	defer a.flushMu.Unlock()
+	a.mu.Lock()
+	batch := map[string]map[string]any{}
+	for k := range a.dirty {
+		if u := a.data.Users[k]; u != nil {
+			batch[k] = userRow(u)
+		}
+	}
+	a.dirty = map[string]bool{}
+	a.mu.Unlock()
+	var wg sync.WaitGroup
+	var failed atomicCount
+	for k, row := range batch {
+		wg.Add(1)
+		go func(k string, row map[string]any) {
+			defer wg.Done()
+			err := a.aw.UpdateRow("players", k, row)
+			if err == nil {
+				return
+			}
+			if awStatus(err) == 404 {
+				log.Printf("appwrite: player row %s was deleted; dropping its changes", k)
+				return
+			}
+			log.Printf("appwrite: saving %s: %v", k, err)
+			a.mu.Lock()
+			a.dirty[k] = true
+			a.mu.Unlock()
+			failed.add()
+		}(k, row)
+	}
+	wg.Wait()
+	return failed.n()
+}
+
+// Flush synchronously saves pending changes (used on shutdown).
+func (a *Accounts) Flush(timeout time.Duration) {
+	if a == nil || a.aw == nil {
+		return
+	}
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		a.mu.Lock()
+		n := len(a.dirty)
+		a.mu.Unlock()
+		if n == 0 {
+			return
+		}
+		if a.writeDirty() == 0 {
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	log.Printf("appwrite: shutdown flush timed out; some changes may be lost")
+}
+
+type atomicCount struct {
+	mu sync.Mutex
+	v  int
+}
+
+func (c *atomicCount) add()   { c.mu.Lock(); c.v++; c.mu.Unlock() }
+func (c *atomicCount) n() int { c.mu.Lock(); defer c.mu.Unlock(); return c.v }
 
 func userRow(u *User) map[string]any {
 	nz := func(s []string) []string {
