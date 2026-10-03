@@ -26,7 +26,7 @@ You do these steps yourself: they change your router and firewall settings.
 ## Every session
 
 ```powershell
-.\beta\run-server.ps1          # keep this window open while testers play
+beta\run-server.cmd          # keep this window open while testers play
 ```
 
 You can play on this PC at `127.0.0.1:7777`.
@@ -34,18 +34,18 @@ You can play on this PC at `127.0.0.1:7777`.
 ## Invites, feedback and testers
 
 ```powershell
-.\beta\invites.ps1 create -n 5 -note "Discord friends"   # single-use codes to hand out
-.\beta\invites.ps1 list                                  # who used which code
-.\beta\invites.ps1 revoke Username                       # remove a tester (applies at next sign-in)
-.\beta\feedback.ps1                                      # read bug reports and ideas
-.\beta\feedback.ps1 -Log                                 # include the attached game logs
+beta\invites.cmd create -n 5 -note "Discord friends"   # single-use codes to hand out
+beta\invites.cmd list                                  # who used which code
+beta\invites.cmd revoke Username                       # remove a tester (applies at next sign-in)
+beta\feedback.cmd                                      # read bug reports and ideas
+beta\feedback.cmd -Log                                 # include the attached game logs
 ```
 
 ## Shipping a new beta build
 
 ```powershell
-.\release.ps1 -Version 0.9.0-beta.2 -Server yourname.duckdns.org:7777 -Godot C:\path\to\Godot_v4.6.2-stable_win64.exe
-.\release.ps1 ... -Publish     # also uploads the zip as a GitHub pre-release
+release.cmd -Version 0.9.0-beta.2 -Server yourname.duckdns.org:7777 -Godot C:\path\to\Godot_v4.6.2-stable_win64.exe
+release.cmd ... -Publish     # also uploads the zip as a GitHub pre-release
 ```
 
 The script writes the new version to `beta\VERSION`. After you restart
