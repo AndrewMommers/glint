@@ -9,7 +9,11 @@
     if (!res.ok) throw new Error(res.status);
     rel = await res.json();
   } catch {
-    $("dl-status").textContent = "The download isn't available right now. Please try again in a few minutes.";
+    // No upload yet: fall back to the GitHub mirror so the button still works.
+    const setup = $("dl-setup");
+    setup.href = "https://github.com/AndrewMommers/glint-beta/releases/latest";
+    setup.removeAttribute("aria-disabled");
+    $("dl-status").textContent = "Get the latest installer from the releases page.";
     return;
   }
 
