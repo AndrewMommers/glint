@@ -289,7 +289,11 @@ func _save_config() -> void:
 	cf.save(CONFIG_PATH)
 
 
+## The name others see: your account name when signed in, otherwise the
+## name typed on the menu (for offline play).
 func _name() -> String:
+	if Online.is_signed_in() and Online.username != "":
+		return Online.username
 	return player_name if player_name != "" else "Player"
 
 
@@ -462,7 +466,7 @@ func show_menu() -> void:
 			cleared += 1
 	left.add_child(_nav("Campaign", "%d / %d levels cleared  ·  ★ %d" % [cleared, Cosmetics.STAGES.size(), Profile.total_stars()], show_campaign, true))
 	left.add_child(_nav("Quick Play", "You vs bots with your own house rules", show_singleplayer))
-	left.add_child(_nav("Multiplayer", "Quick Match, host, or join a room", show_multiplayer))
+	left.add_child(_nav("Multiplayer", "Quick Match, create or join a lobby", show_multiplayer))
 	var pair := UI.hbox(12)
 	pair.add_child(_nav("Customize", "Backs · themes · frames", show_customize))
 	pair.add_child(_nav("Profile", "Stats & unlocks", show_profile))
@@ -505,11 +509,18 @@ func show_menu() -> void:
 	head.add_child(who)
 	col.add_child(head)
 	col.add_child(UI.section("Your name"))
-	var name_edit := UI.line_edit(player_name, "Enter a name", 16)
-	name_edit.text_changed.connect(func(t: String) -> void:
-		player_name = t.strip_edges()
-		_save_config())
-	col.add_child(name_edit)
+	var name_edit := UI.line_edit(_name(), "Enter a name", 16)
+	if Online.is_signed_in():
+		# Online you're always your account; the offline name returns on sign-out.
+		name_edit.editable = false
+		name_edit.tooltip_text = "Your account name. Everyone sees this, online and off."
+		col.add_child(name_edit)
+		col.add_child(UI.label("Your account name. Sign out to use a different name offline.", 12, 500, UI.MUTED))
+	else:
+		name_edit.text_changed.connect(func(t: String) -> void:
+			player_name = t.strip_edges()
+			_save_config())
+		col.add_child(name_edit)
 	col.add_child(_xp_bar(320))
 
 	var stats := UI.hbox(8)
