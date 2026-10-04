@@ -74,7 +74,7 @@ upload() { # upload <fileId> <path>
 }
 
 link() { echo "$ENDPOINT/storage/buckets/$BUCKET/files/$1/download?project=$PROJECT"; }
-sha() { sha256sum "$1" | cut -d' ' -f1; }
+sha() { sha256sum < "$1" | cut -d' ' -f1; }  # via stdin, so Windows paths don't get an escaped (backslash) prefix
 bytes() { wc -c < "$1" | tr -d ' '; }
 
 upload setup-latest "$SETUP"

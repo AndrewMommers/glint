@@ -1,8 +1,8 @@
 {
   "version": "0.9.0-beta.6",
   "date": "2026-10-04",
-  "setup": { "name": "Glint-Setup-0.9.0-beta.6.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/setup-latest/download?project=6ac0ded2003c01a55e80", "bytes": 34273505, "sha256": "\c93b10b937ef869d4cf53ad9f1477036c5e0573da4e1ec8682238afa0caa3fb1" },
-  "zip": { "name": "Glint-0.9.0-beta.6-windows.zip", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/zip-latest/download?project=6ac0ded2003c01a55e80", "bytes": 44093216, "sha256": "\9aa33bc9b0ed16ba3b91dd5ffef357a74ce85435caf71f9d29829272614c675f" },
+  "setup": { "name": "Glint-Setup-0.9.0-beta.6.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/setup-latest/download?project=6ac0ded2003c01a55e80", "bytes": 34273505, "sha256": "c93b10b937ef869d4cf53ad9f1477036c5e0573da4e1ec8682238afa0caa3fb1" },
+  "zip": { "name": "Glint-0.9.0-beta.6-windows.zip", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/zip-latest/download?project=6ac0ded2003c01a55e80", "bytes": 44093216, "sha256": "9aa33bc9b0ed16ba3b91dd5ffef357a74ce85435caf71f9d29829272614c675f" },
   "patch": {
     "exe_sha256": "c93e3677817bf400ecc054fac0da0f9848f6d34fe675cab7cc3b45c31f07fee2",
     "files": [
