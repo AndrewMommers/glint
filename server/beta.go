@@ -12,7 +12,7 @@ import (
 )
 
 // Version is the server version, reported to clients in the welcome message.
-const Version = "0.9.0-beta.7"
+const Version = "0.9.0-beta.8"
 
 // versionLess compares versions like "0.9.0-beta.2". A release (no suffix)
 // is newer than any pre-release of the same number. "" is older than anything.
