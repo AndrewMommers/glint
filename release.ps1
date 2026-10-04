@@ -63,7 +63,7 @@ try {
     Remove-Item $web -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force $web | Out-Null
     Write-Host "Exporting web build..."
-    & $Godot --headless --path (Join-Path $root "client") --export-release "Web" (Join-Path $web "index.html") *> $null
+    & $Godot --headless --path (Join-Path $root "client") --export-release "Web" (Join-Path $web "index.html") | Out-Null  # piping makes PowerShell wait for the GUI exe
     if (-not (Test-Path (Join-Path $web "index.wasm"))) { throw "web export failed (are the web export templates installed?)" }
 } finally {
     Remove-Item $cfgPath -ErrorAction SilentlyContinue
