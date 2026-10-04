@@ -238,9 +238,9 @@ main { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
 .legend p b { color: var(--text); }
 
 /* ---- beta ---- */
-.beta { display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding: 36px 40px; }
-.beta h2 { text-align: left; margin-bottom: 0.3em; }
-.beta p { color: var(--muted); margin: 0; max-width: 640px; }
+.cta-box { display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding: 36px 40px; }
+.cta-box h2 { text-align: left; margin-bottom: 0.3em; }
+.cta-box p { color: var(--muted); margin: 0; max-width: 640px; }
 
 /* ---- faq ---- */
 .faq { max-width: 820px; margin: 0 auto; display: grid; gap: 12px; }

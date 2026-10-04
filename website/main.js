@@ -14,7 +14,7 @@
   lb.addEventListener("click", close);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !lb.hidden) close(); });
 
-  const items = document.querySelectorAll(".feature, .shot, .steps li, .legend, .beta, .faq details");
+  const items = document.querySelectorAll(".feature, .shot, .steps li, .legend, .cta-box, .faq details");
   if (!("IntersectionObserver" in window)) return;
   const io = new IntersectionObserver((entries) => {
     entries.forEach((en) => {
