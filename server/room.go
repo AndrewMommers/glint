@@ -41,6 +41,7 @@ type seat struct {
 	user   string      // account key (signed-in players), for saving chips
 	chips  int         // Blackjack chips at this table
 	left   bool        // Blackjack: left mid-round; the seat goes at the next deal
+	awayAt time.Time   // when they dropped out (Blackjack frees the seat after rejoinGrace)
 }
 
 func (s *seat) bot() bool { return s.client == nil }
@@ -268,7 +269,7 @@ func (r *Room) leave(c *Client, dropped bool) {
 		r.seats = append(r.seats[:i], r.seats[i+1:]...)
 		r.sysChat(s.name + " left")
 	case dropped:
-		s.client, s.away, s.diff = nil, true, uno.Normal
+		s.client, s.away, s.diff, s.awayAt = nil, true, uno.Normal, time.Now()
 		r.sysChat(s.name + " lost connection. A bot plays for them until they're back")
 	case r.kind == gameBlackjack:
 		r.sysChat(s.name + " left the table")

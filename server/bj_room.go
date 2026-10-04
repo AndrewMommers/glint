@@ -79,6 +79,10 @@ func (r *Room) bjBetting() {
 	t := r.bj
 	kept := r.seats[:0]
 	for _, s := range r.seats {
+		if s.away && time.Since(s.awayAt) > rejoinGrace {
+			s.left = true // gone too long: free the seat
+			r.sysChat(s.name + " left the table")
+		}
 		if !s.left {
 			kept = append(kept, s)
 		}

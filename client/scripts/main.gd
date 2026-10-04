@@ -10,6 +10,7 @@ var screen_root := Control.new()
 var toast_root := Control.new()
 var modal_root := Control.new()
 var table: Table
+var bj_table: BlackjackTable  # the Blackjack table, when playing Blackjack
 
 var player_name := ""
 var server_addr := Release.server()
@@ -69,6 +70,7 @@ func _ready() -> void:
 	toast_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(toast_root)
 
+	GameMode.detect()
 	_load_config()
 	_apply_cosmetics()
 	Profile.changed.connect(_apply_cosmetics)
@@ -178,6 +180,8 @@ func _debug_args() -> void:
 				_create_lobby.call_deferred()
 			elif what.begins_with("join:"):
 				_join.call_deferred(what.get_slice(":", 1))
+			elif what.begins_with("solo:"):
+				_start_singleplayer.call_deferred(int(what.get_slice(":", 1)), {}, -1)
 		elif a.begins_with("--stage="):
 			_start_stage.call_deferred(int(a.get_slice("=", 1)))
 		elif a.begins_with("--fake-win="):
@@ -252,6 +256,8 @@ func _fake_win(stage: int, match_no: int = 1, private_guest: bool = false) -> vo
 func _process(_d: float) -> void:
 	if _countdown != null and Engine.get_process_frames() % 10 == 0:
 		_update_countdown()
+	if has_meta("autoplay") and bj_table != null and Engine.get_process_frames() % 30 == 0:
+		_autoplay_blackjack()
 	# --autoplay: play the first legal card for us (for testing the table).
 	if not has_meta("autoplay") or table == null or not table.is_my_turn():
 		return
@@ -309,6 +315,7 @@ func _clear() -> void:
 	for c in screen_root.get_children():
 		c.queue_free()
 	table = null
+	bj_table = null
 	_lobby_sig = ""
 	_rooms_box = null
 
@@ -453,6 +460,9 @@ func show_menu() -> void:
 	tw.tween_method(func(v: float) -> void: shine.set_shader_parameter("sweep", v), -0.5, 1.6, 2.2)
 	tw.tween_interval(3.5)
 	left.add_child(wm)
+	if GameMode.is_blackjack():
+		var gt := UI.label("Blackjack", 44, 900)
+		left.add_child(gt)
 	var tag := "v%s" % Release.version()
 	left.add_child(UI.label(tag, 16, 600, UI.MUTED))
 	left.add_child(UI.spacer(0, 14))
@@ -463,17 +473,21 @@ func show_menu() -> void:
 	left.add_child(nav_glass)
 	row.add_child(left)
 	left = nav  # the buttons below go inside the glass
-	var cleared := 0
-	for i in Cosmetics.STAGES.size():
-		if Profile.stars(i) > 0:
-			cleared += 1
-	left.add_child(_nav("Campaign", "%d / %d levels cleared  ·  ★ %d" % [cleared, Cosmetics.STAGES.size(), Profile.total_stars()], show_campaign, true))
-	left.add_child(_nav("Quick Play", "You vs bots with your own house rules", show_singleplayer))
-	left.add_child(_nav("Multiplayer", "Quick Match, create or join a lobby", show_multiplayer))
-	var pair := UI.hbox(12)
-	pair.add_child(_nav("Customize", "Backs · themes · frames", show_customize))
-	pair.add_child(_nav("Profile", "Stats & unlocks", show_profile))
-	left.add_child(pair)
+	if GameMode.is_blackjack():
+		left.add_child(_nav("Play vs dealer", "Just you and the dealer", func() -> void: _start_singleplayer(0, {}, -1), true))
+		left.add_child(_nav("Multiplayer", "Quick Match, create or join a table", show_multiplayer))
+	else:
+		var cleared := 0
+		for i in Cosmetics.STAGES.size():
+			if Profile.stars(i) > 0:
+				cleared += 1
+		left.add_child(_nav("Campaign", "%d / %d levels cleared  ·  %d stars" % [cleared, Cosmetics.STAGES.size(), Profile.total_stars()], show_campaign, true))
+		left.add_child(_nav("Quick Play", "You vs bots with your own house rules", show_singleplayer))
+		left.add_child(_nav("Multiplayer", "Quick Match, create or join a lobby", show_multiplayer))
+		var pair := UI.hbox(12)
+		pair.add_child(_nav("Customize", "Backs · themes · frames", show_customize))
+		pair.add_child(_nav("Profile", "Stats & unlocks", show_profile))
+		left.add_child(pair)
 	var pair2 := UI.hbox(12)
 	var fr_sub := "Sign in to add friends"
 	if Online.is_signed_in():
@@ -484,7 +498,7 @@ func show_menu() -> void:
 	pair2.add_child(_nav("Options", "Audio · display · gameplay", show_options))
 	left.add_child(pair2)
 	var bottom := UI.hbox(12)
-	var how := UI.button("How to Play", show_rules)
+	var how := UI.button("How to Play", _blackjack_rules if GameMode.is_blackjack() else show_rules)
 	how.custom_minimum_size = Vector2(0, 42)
 	how.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bottom.add_child(how)
@@ -528,10 +542,18 @@ func show_menu() -> void:
 	col.add_child(_xp_bar(320))
 
 	var stats := UI.hbox(8)
-	var rounds := int(Profile.stats.rounds)
-	var wins := int(Profile.stats.wins)
-	for s in [[str(wins), "Wins"], ["%d%%" % (100 * wins / maxi(rounds, 1)), "Win rate"], [str(Profile.stats.best_streak), "Best streak"]]:
-		stats.add_child(_stat_tile(s[0], s[1]))
+	if GameMode.is_blackjack():
+		if Online.is_signed_in():
+			stats.add_child(_stat_tile(str(Online.chips), "Chips"))
+			stats.add_child(_stat_tile("+500", "Daily bonus"))
+		else:
+			stats.add_child(_stat_tile("1000", "Chips per table"))
+			stats.add_child(_stat_tile("Free", "Sign in to keep them"))
+	else:
+		var rounds := int(Profile.stats.rounds)
+		var wins := int(Profile.stats.wins)
+		for s in [[str(wins), "Wins"], ["%d%%" % (100 * wins / maxi(rounds, 1)), "Win rate"], [str(Profile.stats.best_streak), "Best streak"]]:
+			stats.add_child(_stat_tile(s[0], s[1]))
 	col.add_child(stats)
 
 	if Online.is_signed_in():
@@ -1142,7 +1164,7 @@ func _start_singleplayer(bots: int, settings: Dictionary, stage: int) -> void:
 	var s: Dictionary = settings.duplicate(true)
 	s.public = false
 	var create := func() -> void:
-		Net.send({"t": "create", "name": _name(), "bots": bots, "settings": s})
+		Net.send({"t": "create", "name": _name(), "bots": bots, "settings": s, "game": GameMode.server_name()})
 	_connecting("Level %d · %s" % [stage + 1, Cosmetics.STAGES[stage].name] if stage >= 0 else "Shuffling the deck…")
 	if Net.is_online() and Net.connected_to("127.0.0.1", Net.LOCAL_PORT):
 		create.call()
@@ -1160,7 +1182,7 @@ func _start_singleplayer_online(bots: int, settings: Dictionary, stage: int) -> 
 	_connecting("Level %d · %s" % [stage + 1, Cosmetics.STAGES[stage].name] if stage >= 0 else "Shuffling the deck…")
 	_with_server(func() -> void:
 		singleplayer = true
-		Net.send({"t": "create", "name": _name(), "bots": bots, "settings": s}))
+		Net.send({"t": "create", "name": _name(), "bots": bots, "settings": s, "game": GameMode.server_name()}))
 
 
 func _connecting(text: String) -> void:
@@ -1197,13 +1219,13 @@ func show_multiplayer() -> void:
 	var quick := UI.button("⚡  Quick Match", _quick, true)
 	quick.custom_minimum_size = Vector2(0, 64)
 	quick.add_theme_font_size_override("font_size", 22)
-	quick.tooltip_text = "Join a 4-player table with other players. Bots fill any empty seats."
+	quick.tooltip_text = "Sit down at a Blackjack table with other players" if GameMode.is_blackjack() else "Join a 4-player table with other players. Bots fill any empty seats."
 	col.add_child(quick)
 
 	var halves := UI.hbox(24)
 	var create := UI.vbox(10)
 	create.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	create.add_child(UI.section("Create a lobby"))
+	create.add_child(UI.section("Create a table" if GameMode.is_blackjack() else "Create a lobby"))
 	var vis_note := UI.label("", 13, 500, UI.MUTED)
 	vis_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var set_note := func() -> void:
@@ -1215,7 +1237,7 @@ func show_multiplayer() -> void:
 		_save_config()
 		set_note.call()))
 	create.add_child(vis_note)
-	create.add_child(UI.button("Create lobby", _create_lobby, true))
+	create.add_child(UI.button("Create table" if GameMode.is_blackjack() else "Create lobby", _create_lobby, true))
 	halves.add_child(create)
 
 	var join := UI.vbox(10)
@@ -1252,7 +1274,7 @@ func show_multiplayer() -> void:
 	t.autostart = true
 	t.timeout.connect(func() -> void:
 		if _screen == "multi" and Net.is_online():
-			Net.send({"t": "list"}))
+			Net.send({"t": "list", "game": GameMode.server_name()}))
 	p.add_child(t)
 
 
@@ -1283,7 +1305,7 @@ func _with_server(then: Callable) -> void:
 
 
 func _quick() -> void:
-	_with_server(func() -> void: Net.send({"t": "quick", "name": _name()}))
+	_with_server(func() -> void: Net.send({"t": "quick", "name": _name(), "game": GameMode.server_name()}))
 
 
 ## Reconnects to the server we dropped from and asks for our seat back.
@@ -1302,7 +1324,7 @@ func _try_rejoin() -> void:
 
 
 func _browse() -> void:
-	_with_server(func() -> void: Net.send({"t": "list"}))
+	_with_server(func() -> void: Net.send({"t": "list", "game": GameMode.server_name()}))
 
 
 func _create_lobby() -> void:
@@ -1310,7 +1332,9 @@ func _create_lobby() -> void:
 	s.public = setup.get("lobby_public", true)
 	if int(s.turnTime) == 0:
 		s.turnTime = 30
-	_with_server(func() -> void: Net.send({"t": "create", "name": _name(), "bots": 0, "settings": s}))
+	if GameMode.is_blackjack():
+		s = {"public": s.public}
+	_with_server(func() -> void: Net.send({"t": "create", "name": _name(), "bots": 0, "settings": s, "game": GameMode.server_name()}))
 
 
 func _join(code: String) -> void:
@@ -1366,7 +1390,8 @@ func show_lobby(st: Dictionary) -> void:
 
 	var head := UI.hbox(16)
 	var t := _title("Quick Match", "Starts by itself. Bots fill any empty seats.") if quick \
-		else _title("Lobby", "Share the code with friends. The host picks the rules.")
+		else (_title("Blackjack table", "Up to 5 players, each against the dealer. Share the code with friends.") if st.get("game", "") == "blackjack" \
+		else _title("Lobby", "Share the code with friends. The host picks the rules."))
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(t)
 	var code_btn := UI.button(st.code, func() -> void:
@@ -1407,17 +1432,25 @@ func show_lobby(st: Dictionary) -> void:
 	var settings_box := UI.vbox(16)
 	settings_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var editable := is_host and not quick
-	if quick:
+	if st.get("game", "") == "blackjack":
+		settings_box.add_child(UI.section("Table limits"))
+		var limits := [["10 – 500", [10, 500]], ["25 – 1,000", [25, 1000]], ["100 – 5,000", [100, 5000]]]
+		var cur := [int(st.settings.get("minBet", 10)), int(st.settings.get("maxBet", 500))]
+		settings_box.add_child(UI.segmented(limits, cur, func(v: Array) -> void:
+			Net.send({"t": "settings", "settings": {"minBet": v[0], "maxBet": v[1]}}), editable))
+		settings_box.add_child(UI.label("Free play chips only. Blackjack pays 3 to 2 and the dealer stands on all 17s.", 14, 500, UI.MUTED))
+	elif quick:
 		settings_box.add_child(UI.label("Standard rules · 7 cards · %ds turns · one round" % int(st.settings.get("turnTime", 20)), 15, 600, UI.MUTED))
-	if not quick:
+	if not quick and st.get("game", "") != "blackjack":
 		settings_box.add_child(_presets_section(st.settings.duplicate(true), editable, func(s: Dictionary) -> void:
 			setup.settings = s.duplicate(true)
 			_save_config()
 			Net.send({"t": "settings", "settings": s})))
-	settings_box.add_child(_rules_editor(st.settings.duplicate(true), editable, func(s: Dictionary) -> void:
-		setup.settings = s.duplicate(true)
-		_save_config()
-		Net.send({"t": "settings", "settings": s}), true))
+	if st.get("game", "") != "blackjack":
+		settings_box.add_child(_rules_editor(st.settings.duplicate(true), editable, func(s: Dictionary) -> void:
+			setup.settings = s.duplicate(true)
+			_save_config()
+			Net.send({"t": "settings", "settings": s}), true))
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.custom_minimum_size = Vector2(0, 360)
@@ -1550,6 +1583,72 @@ func _leave() -> void:
 			show_campaign()
 		else:
 			show_menu()
+
+
+# ---------------------------------------------------------------- blackjack
+
+func _blackjack_state(msg: Dictionary) -> void:
+	if msg.phase == "lobby":
+		if singleplayer:
+			Net.send({"t": "start"})
+		else:
+			show_lobby(msg)
+		return
+	if bj_table == null:
+		_clear()
+		bj_table = BlackjackTable.new()
+		bj_table.singleplayer = singleplayer
+		bj_table.leave_requested.connect(_leave)
+		bj_table.options_requested.connect(func() -> void: _dialog("Options", _options_body()))
+		bj_table.rules_requested.connect(_blackjack_rules)
+		Audio.music("game")
+		screen_root.add_child(bj_table)
+	bj_table.apply_state(msg)
+	if Online.is_signed_in():
+		Online.chips = bj_table.my_chips()
+
+
+## --autoplay at a Blackjack table: bet the minimum, hit below 12 (testing).
+func _autoplay_blackjack() -> void:
+	var bj: Dictionary = bj_table.st.get("bj", {})
+	var me: String = bj_table.me
+	for seat in bj.get("seats", []):
+		if seat.id != me:
+			continue
+		if bj.get("phase", "") == "betting" and int(seat.get("bet", 0)) == 0 and int(seat.chips) >= int(bj.minBet):
+			Net.send({"t": "bet", "amount": int(bj.minBet) * 2})
+		elif bj.get("phase", "") == "playing" and bj.get("turn", "") == me:
+			for h in seat.hands:
+				if h.get("active", false):
+					Net.send({"t": "hit" if int(h.total) < 12 else "stand"})
+
+
+func _blackjack_rules() -> void:
+	var body := UI.vbox(10)
+	for line in [
+		"[b]Goal.[/b] Beat the dealer: get closer to 21 than the dealer without going over.",
+		"[b]Card values.[/b] 2–10 are worth their number, J/Q/K are 10, and an ace is 1 or 11.",
+		"[b]Your turn.[/b] [b]Hit[/b] (H) for another card, [b]Stand[/b] (S) to keep your hand, [b]Double[/b] (D) to double your bet for exactly one more card, or [b]Split[/b] (P) a pair into two hands.",
+		"[b]Blackjack.[/b] An ace and a ten-card as your first two cards pays 3 to 2.",
+		"[b]The dealer[/b] draws to 17 and stands on all 17s. Over 21 is a bust.",
+		"[b]Chips.[/b] Free play chips only. Signed in, you keep them and get a daily bonus. Run out and you'll get more after a short wait.",
+	]:
+		var r := RichTextLabel.new()
+		r.bbcode_enabled = true
+		r.fit_content = true
+		r.scroll_active = false
+		r.custom_minimum_size = Vector2(560, 0)
+		r.add_theme_font_override("normal_font", UI.font(500))
+		r.add_theme_font_override("bold_font", UI.font(800))
+		r.add_theme_font_size_override("normal_font_size", 16)
+		r.add_theme_font_size_override("bold_font_size", 16)
+		r.text = line
+		body.add_child(r)
+	var row := UI.hbox(10)
+	row.add_child(UI.spacer(0, 0, true))
+	row.add_child(UI.button("Got it", _close_dialog, true, 140))
+	body.add_child(row)
+	_dialog("How to play Blackjack", body)
 
 
 # ---------------------------------------------------------------- progression
@@ -2403,6 +2502,9 @@ func _net_message(msg: Dictionary) -> void:
 	match msg.get("t"):
 		"state":
 			_last_state = msg
+			if msg.get("game", "") == "blackjack":
+				_blackjack_state(msg)
+				return
 			_track(msg)
 			if msg.phase == "lobby":
 				if singleplayer:
@@ -2450,6 +2552,8 @@ func _net_message(msg: Dictionary) -> void:
 				_chat_box.add(msg)
 			if table:
 				table.add_chat(msg)
+			if bj_table:
+				bj_table.add_chat(msg)
 		"kicked":
 			Net.clear_seat()
 			_last_state = {}

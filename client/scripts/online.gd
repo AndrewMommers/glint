@@ -12,6 +12,7 @@ const PATH := "user://account.cfg"
 
 var addr := Release.server()
 var username := ""
+var chips := 0  # play chips (Blackjack), from the server
 var token := ""
 var status := "offline"  # offline, connecting, online (connected, not signed in), signed_in
 var last_error := ""
@@ -219,6 +220,7 @@ func _on_message(m: Dictionary) -> void:
 			pending = false
 			username = m.get("username", "")
 			token = m.get("token", "")
+			chips = int(m.get("chips", 0))
 			_save()
 			_sync_profile(int(m.get("xp", 0)), m.get("data", null))
 			_set_status("signed_in")

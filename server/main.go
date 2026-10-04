@@ -193,11 +193,15 @@ func (h *Hub) signIn(c *Client, k, token string, reply bool) {
 	c.user, c.token, c.name = k, token, name
 	h.accounts.SetOnline(k, c, true)
 	if reply {
-		msg := map[string]any{"t": "auth_ok", "username": name, "token": token, "xp": xp}
+		chips, gift := h.accounts.Chips(k)
+		msg := map[string]any{"t": "auth_ok", "username": name, "token": token, "xp": xp, "chips": chips}
 		if len(data) > 0 {
 			msg["data"] = data
 		}
 		c.send(msg)
+		if gift == "daily" {
+			c.send(map[string]any{"t": "notice", "kind": "info", "msg": fmt.Sprintf("Daily bonus: +%d chips", DailyBonus)})
+		}
 		c.send(h.accounts.FriendsPayload(k))
 	}
 }
