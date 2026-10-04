@@ -16,7 +16,8 @@
     .play-bar .brand img:first-child { width: 28px; height: 28px; }
     .play-bar .spacer { flex: 1; }
     .play-status { color: var(--muted); font-size: 0.9rem; }
-    .play-stage { position: relative; flex: 1; margin: 10px 12px 12px; border-radius: 18px; overflow: hidden; background: #0b0d22; border: 1px solid var(--rim); }
+    /* Full width under the bar (the site-wide main max-width does not apply here). */
+    .play-stage { position: relative; flex: 1; max-width: none; padding: 0; margin: 10px 12px 12px; border-radius: 18px; overflow: hidden; background: #0b0d22; border: 1px solid var(--rim); }
     .play-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #0b0d22; }
     .play-note { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; z-index: 1; }
     .play-note[hidden] { display: none; }
