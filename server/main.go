@@ -108,6 +108,14 @@ func (c *Client) writeLoop() {
 	}
 }
 
+// gameKind maps a client's game name to a room kind ("" is Glint Cards).
+func gameKind(g string) string {
+	if g == gameBlackjack {
+		return gameBlackjack
+	}
+	return gameCards
+}
+
 func readErr(err error) string {
 	if err == nil {
 		return "connection closed"
@@ -347,7 +355,7 @@ func (h *Hub) dispatch(c *Client, m inMsg) {
 			}
 		}
 	case "list":
-		c.send(map[string]any{"t": "rooms", "rooms": h.publicRooms()})
+		c.send(map[string]any{"t": "rooms", "rooms": h.publicRooms(gameKind(m.Game))})
 	case "create":
 		if m.Name != "" && c.user == "" {
 			c.name = cleanName(m.Name)
@@ -356,6 +364,10 @@ func (h *Hub) dispatch(c *Client, m inMsg) {
 		r := h.createRoom()
 		var err error
 		r.do(func() {
+			r.kind = gameKind(m.Game)
+			if r.kind == gameBlackjack {
+				r.settings.MaxPlayers, r.settings.TurnTime = bjMaxSeats, int(bjTurnTime.Seconds())
+			}
 			r.settings.apply(m.Settings)
 			if err = r.join(c); err != nil {
 				return
@@ -407,7 +419,8 @@ func (h *Hub) dispatch(c *Client, m inMsg) {
 		leaveRoom()
 		// Try the fullest open Quick Match table; another player may grab
 		// the last seat first, so fall through to the next one.
-		for _, r := range h.quickRooms() {
+		game := gameKind(m.Game)
+		for _, r := range h.quickRooms(game) {
 			var err error
 			if r.do(func() {
 				if err = r.join(c); err == nil {
@@ -422,10 +435,18 @@ func (h *Hub) dispatch(c *Client, m inMsg) {
 		r := h.createRoom()
 		r.do(func() {
 			r.quick = true
+			r.kind = game
 			r.settings.MaxPlayers = quickSeats
 			r.settings.TurnTime = 20
 			r.settings.TargetScore = 0
+			if game == gameBlackjack {
+				r.settings.MaxPlayers = bjMaxSeats
+			}
 			r.join(c)
+			if game == gameBlackjack {
+				r.start() // the dealer's always ready; others sit down as they come
+				return
+			}
 			r.changed(nil, false)
 		})
 		c.setRoom(r)
@@ -544,6 +565,10 @@ func main() {
 				log.Fatalf("appwrite: no API key (set APPWRITE_API_KEY or put it in %s)", filepath.Join(*dataDir, "appwrite.key"))
 			}
 			h.appwrite = NewAppwrite(*awEndpoint, *awProject, key, *awDB)
+			// Bring the tables up to date (new versions add columns, e.g. chips).
+			if err := h.appwrite.Setup(func(string, ...any) {}); err != nil {
+				log.Printf("appwrite: schema check: %v", err)
+			}
 			acc, err = OpenAccountsAppwrite(h.appwrite)
 			if err != nil {
 				log.Fatalf("appwrite: %v (did you run: glint-server appwrite-setup?)", err)

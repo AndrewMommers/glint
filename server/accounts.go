@@ -52,6 +52,9 @@ type User struct {
 	XP       int             `json:"xp"`
 	Level    int             `json:"level"`
 	Profile  json.RawMessage `json:"profile,omitempty"`
+	Chips    int             `json:"chips"`    // play chips for Blackjack / Hold'em (no cash value)
+	BonusAt  int64           `json:"bonusAt"`  // unix time of the last daily bonus (0: never had chips)
+	RescueAt int64           `json:"rescueAt"` // unix time of the last broke top-up
 
 	AppwriteID string `json:"appwriteId,omitempty"`
 }
@@ -225,6 +228,59 @@ func (a *Accounts) PushProfile(k string, xp, level int, profile json.RawMessage)
 	}
 	u.XP, u.Level, u.Profile = xp, clamp(level, 1, 999), profile
 	a.commit(k)
+}
+
+// ---- chips ----
+
+// Chip economy: play chips only, no cash value.
+const (
+	StartingChips = 1000
+	DailyBonus    = 500
+	bonusEvery    = 20 * time.Hour // a little under a day, so a daily habit always gets it
+	RescueChips   = 500            // a broke player is topped back up to this...
+	rescueEvery   = time.Hour      // ...at most this often
+)
+
+// Chips returns k's chips after applying the starting stack, the daily bonus
+// and the broke top-up, and says which (if any) were just given.
+func (a *Accounts) Chips(k string) (chips int, gift string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	u := a.data.Users[k]
+	if u == nil {
+		return 0, ""
+	}
+	gift = applyChipGifts(u, time.Now())
+	if gift != "" {
+		a.commit(k)
+	}
+	return u.Chips, gift
+}
+
+func applyChipGifts(u *User, now time.Time) string {
+	switch {
+	case u.BonusAt == 0:
+		u.Chips, u.BonusAt = StartingChips, now.Unix()
+		return "start"
+	case now.Sub(time.Unix(u.BonusAt, 0)) >= bonusEvery:
+		u.Chips += DailyBonus
+		u.BonusAt = now.Unix()
+		return "daily"
+	case u.Chips < 10 && now.Sub(time.Unix(u.RescueAt, 0)) >= rescueEvery:
+		u.Chips, u.RescueAt = RescueChips, now.Unix()
+		return "rescue"
+	}
+	return ""
+}
+
+// SetChips stores k's chip count (the table settles each round).
+func (a *Accounts) SetChips(k string, chips int) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if u := a.data.Users[k]; u != nil && u.Chips != chips {
+		u.Chips = max(chips, 0)
+		a.commit(k)
+	}
 }
 
 // ---- presence ----
@@ -587,6 +643,7 @@ func userRow(u *User) map[string]any {
 		"name": u.Name, "appwriteId": u.AppwriteID,
 		"friends": nz(u.Friends), "incoming": nz(u.Incoming), "outgoing": nz(u.Outgoing),
 		"xp": u.XP, "level": u.Level, "profile": string(u.Profile),
+		"chips": u.Chips, "bonusAt": u.BonusAt, "rescueAt": u.RescueAt,
 	}
 }
 
@@ -607,7 +664,8 @@ func rowToUser(row map[string]any) *User {
 		return int(f)
 	}
 	u := &User{Friends: strs(row["friends"]), Incoming: strs(row["incoming"]), Outgoing: strs(row["outgoing"]),
-		XP: num(row["xp"]), Level: num(row["level"])}
+		XP: num(row["xp"]), Level: num(row["level"]), Chips: num(row["chips"]),
+		BonusAt: int64(num(row["bonusAt"])), RescueAt: int64(num(row["rescueAt"]))}
 	u.Name, _ = row["name"].(string)
 	u.AppwriteID, _ = row["appwriteId"].(string)
 	if p, _ := row["profile"].(string); p != "" && json.Valid([]byte(p)) {

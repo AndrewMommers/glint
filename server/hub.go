@@ -146,12 +146,12 @@ func (h *Hub) setInfo(code string, info *roomInfo) {
 }
 
 // quickRooms lists Quick Match lobbies with a free seat, fullest first.
-func (h *Hub) quickRooms() []*Room {
+func (h *Hub) quickRooms(game string) []*Room {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	var infos []roomInfo
 	for _, i := range h.info {
-		if i.Quick && i.Players < i.Max {
+		if i.Quick && i.Players < i.Max && i.Game == game {
 			infos = append(infos, i)
 		}
 	}
@@ -165,12 +165,14 @@ func (h *Hub) quickRooms() []*Room {
 	return out
 }
 
-func (h *Hub) publicRooms() []roomInfo {
+func (h *Hub) publicRooms(game string) []roomInfo {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	out := []roomInfo{}
 	for _, i := range h.info {
-		out = append(out, i)
+		if i.Game == game {
+			out = append(out, i)
+		}
 	}
 	sort.Slice(out, func(a, b int) bool { return out[a].Code < out[b].Code })
 	return out

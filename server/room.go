@@ -38,6 +38,9 @@ type seat struct {
 	ready  bool        // lobby ready check
 	ban    string      // what keeps them out if the host kicks them (account or IP)
 	chat   []time.Time // recent chat messages, for the rate limit
+	user   string      // account key (signed-in players), for saving chips
+	chips  int         // Blackjack chips at this table
+	left   bool        // Blackjack: left mid-round; the seat goes at the next deal
 }
 
 func (s *seat) bot() bool { return s.client == nil }
@@ -67,6 +70,8 @@ type Room struct {
 	startAt     time.Time       // Quick Match countdown (zero when not counting down)
 	chat        []chatJ         // recent chat, replayed to anyone who joins
 	banned      map[string]bool // ban keys of kicked players
+	kind        string          // which game: gameCards or gameBlackjack
+	bj          *bjTable        // Blackjack table (kind == gameBlackjack)
 }
 
 func newRoom(code string, hub *Hub, seed int64) *Room {
@@ -76,10 +81,12 @@ func newRoom(code string, hub *Hub, seed int64) *Room {
 		actions: make(chan func(), 128),
 		closed:  make(chan struct{}),
 		phase:   "lobby",
+		kind:    gameCards,
 		rng:     mrand.New(mrand.NewSource(seed)),
 		settings: settings{
 			Rules: uno.DefaultRules(), TurnTime: 30, TargetScore: 500,
 			Difficulty: "normal", Public: true, MaxPlayers: maxPlayers,
+			MinBet: 10, MaxBet: 500,
 		},
 	}
 	go r.loop()
@@ -193,13 +200,16 @@ func (r *Room) join(c *Client) error {
 	if r.banned[c.banKey()] {
 		return errors.New("the host removed you from that room")
 	}
-	if r.phase != "lobby" {
+	if r.phase != "lobby" && r.kind != gameBlackjack { // Blackjack seats people between hands
 		return errors.New("that game has already started")
 	}
 	if len(r.seats) >= r.settings.MaxPlayers {
 		return errors.New("that room is full")
 	}
-	s := &seat{id: c.id, name: c.name, client: c, prof: c.prof, token: newToken(), ban: c.banKey()}
+	s := &seat{id: c.id, name: c.name, client: c, prof: c.prof, token: newToken(), ban: c.banKey(), user: c.user}
+	if r.kind == gameBlackjack {
+		s.chips = r.seatChips(c)
+	}
 	r.seats = append(r.seats, s)
 	if r.host == "" {
 		r.host = c.id
@@ -260,6 +270,9 @@ func (r *Room) leave(c *Client, dropped bool) {
 	case dropped:
 		s.client, s.away, s.diff = nil, true, uno.Normal
 		r.sysChat(s.name + " lost connection. A bot plays for them until they're back")
+	case r.kind == gameBlackjack:
+		r.sysChat(s.name + " left the table")
+		s.client, s.away, s.token, s.left = nil, false, "", true
 	default:
 		r.sysChat(s.name + " left. A bot takes over")
 		s.client, s.away, s.token, s.diff = nil, false, "", uno.Normal
@@ -332,6 +345,8 @@ func (r *Room) kick(j int) error {
 	r.sysChat(s.name + " was removed by the host")
 	if r.phase == "lobby" {
 		r.seats = append(r.seats[:j], r.seats[j+1:]...)
+	} else if r.kind == gameBlackjack {
+		s.client, s.away, s.token, s.left = nil, false, "", true
 	} else {
 		s.client, s.away, s.token, s.diff = nil, false, "", uno.Normal
 		s.name += " (bot)"
@@ -363,7 +378,7 @@ func (r *Room) addBot(diff uno.Difficulty) error {
 		Back:  backs[r.rng.Intn(len(backs))],
 		Level: [...]int{3, 12, 28}[diff] + r.rng.Intn(8),
 	}
-	r.seats = append(r.seats, &seat{id: r.hub.newID("b"), name: name, diff: diff, prof: prof})
+	r.seats = append(r.seats, &seat{id: r.hub.newID("b"), name: name, diff: diff, prof: prof, chips: botChips})
 	return nil
 }
 
@@ -394,6 +409,11 @@ func (r *Room) armQuick() {
 }
 
 func (r *Room) quickStart() {
+	if r.kind == gameBlackjack { // you play the dealer; others sit down as they arrive
+		r.startAt = time.Time{}
+		r.start()
+		return
+	}
 	for len(r.seats) < quickSeats {
 		if r.addBot(uno.Normal) != nil {
 			break
@@ -531,6 +551,12 @@ func (r *Room) handle(c *Client, m inMsg) {
 }
 
 func (r *Room) start() error {
+	if r.kind == gameBlackjack {
+		if r.phase != "lobby" {
+			return errors.New("the table is already running")
+		}
+		return r.bjStart()
+	}
 	switch r.phase {
 	case "playing":
 		return errors.New("a round is already running")
@@ -556,6 +582,12 @@ func (r *Room) start() error {
 }
 
 func (r *Room) gameAction(i int, m inMsg) error {
+	if r.kind == gameBlackjack {
+		if r.phase != "playing" || r.bj == nil {
+			return errors.New("the table hasn't started yet")
+		}
+		return r.bjAction(i, m)
+	}
 	if r.phase != "playing" {
 		return errors.New("no round is running")
 	}
@@ -597,6 +629,15 @@ func (r *Room) gameAction(i int, m inMsg) error {
 
 func (r *Room) changed(ev []uno.Event, resetTimer bool) {
 	r.gen++
+	if r.kind == gameBlackjack {
+		if r.bj != nil {
+			r.bjTurnTimer()
+		}
+		r.broadcast(nil)
+		r.publishInfo()
+		r.bjSchedule()
+		return
+	}
 	if r.phase == "playing" && r.game.Winner >= 0 {
 		w := r.seats[r.game.Winner]
 		r.roundPoints = r.game.RoundPoints()
@@ -702,6 +743,10 @@ func (r *Room) stateFor(viewer int, ev []uno.Event) stateJ {
 		T: "state", Code: r.code, Phase: r.phase, You: r.idAt(viewer), Host: r.host,
 		Settings: r.settings, Round: r.round, Match: r.match, Drawn: -1, Hand: []cardJ{}, Playable: []int{},
 		Events: []eventJ{}, Winner: r.winner, RoundPoints: r.roundPoints, Dir: 1, Quick: r.quick,
+		Game: r.kind,
+	}
+	if r.kind == gameBlackjack && r.bj != nil {
+		st.BJ = r.bjState(viewer)
 	}
 	if r.quick && r.phase == "lobby" && !r.startAt.IsZero() {
 		st.StartsIn = time.Until(r.startAt).Seconds()
@@ -780,12 +825,12 @@ func (r *Room) broadcastRaw(v any) {
 
 func (r *Room) publishInfo() {
 	var info *roomInfo
-	if r.settings.Public && r.phase == "lobby" && len(r.seats) < r.settings.MaxPlayers {
+	if r.settings.Public && (r.phase == "lobby" || r.kind == gameBlackjack) && len(r.seats) < r.settings.MaxPlayers {
 		hostName := ""
 		if i := r.seatIndex(r.host); i >= 0 {
 			hostName = r.seats[i].name
 		}
-		info = &roomInfo{Code: r.code, Host: hostName, Players: len(r.seats), Max: r.settings.MaxPlayers, Quick: r.quick}
+		info = &roomInfo{Code: r.code, Host: hostName, Players: len(r.seats), Max: r.settings.MaxPlayers, Quick: r.quick, Game: r.kind}
 	}
 	r.hub.setInfo(r.code, info)
 }

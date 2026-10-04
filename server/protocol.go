@@ -49,6 +49,8 @@ type inMsg struct {
 	Target     string          `json:"target"`
 	Uno        bool            `json:"uno"`
 	Ready      bool            `json:"ready"`
+	Game       string          `json:"game"`   // create / quick / list: which game ("" = Glint Cards)
+	Amount     int             `json:"amount"` // Blackjack bet
 	Text       string          `json:"text"`
 	Profile    *profile        `json:"profile"`
 	Username   string          `json:"username"`
@@ -87,6 +89,8 @@ type settingsMsg struct {
 	TargetScore *int       `json:"targetScore"`
 	Difficulty  *string    `json:"difficulty"`
 	Public      *bool      `json:"public"`
+	MinBet      *int       `json:"minBet"`
+	MaxBet      *int       `json:"maxBet"`
 }
 
 type settings struct {
@@ -96,6 +100,8 @@ type settings struct {
 	Difficulty  string    `json:"difficulty"`  // default bot difficulty
 	Public      bool      `json:"public"`      // listed in the room browser
 	MaxPlayers  int       `json:"maxPlayers"`
+	MinBet      int       `json:"minBet"` // Blackjack table limits
+	MaxBet      int       `json:"maxBet"`
 }
 
 func (s *settings) apply(m *settingsMsg) {
@@ -116,6 +122,15 @@ func (s *settings) apply(m *settingsMsg) {
 	}
 	if m.Public != nil {
 		s.Public = *m.Public
+	}
+	if m.MinBet != nil {
+		s.MinBet = clamp(*m.MinBet, 1, 1000)
+	}
+	if m.MaxBet != nil {
+		s.MaxBet = clamp(*m.MaxBet, s.MinBet, 100000)
+	}
+	if s.MaxBet < s.MinBet {
+		s.MaxBet = s.MinBet
 	}
 }
 
@@ -190,6 +205,8 @@ type stateJ struct {
 	Winner      string    `json:"winner,omitempty"`
 	RoundPoints int       `json:"roundPoints"`
 	Quick       bool      `json:"quick,omitempty"`    // Quick Match table
+	Game        string    `json:"game"`               // gameCards or gameBlackjack
+	BJ          *bjStateJ `json:"bj,omitempty"`       // Blackjack table
 	StartsIn    float64   `json:"startsIn,omitempty"` // Quick Match countdown, seconds
 }
 
@@ -199,4 +216,5 @@ type roomInfo struct {
 	Players int    `json:"players"`
 	Max     int    `json:"max"`
 	Quick   bool   `json:"quick,omitempty"`
+	Game    string `json:"game"`
 }

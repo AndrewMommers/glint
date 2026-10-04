@@ -235,6 +235,9 @@ var awTables = []struct {
 		{Kind: "integer", Key: "xp", Default: 0},
 		{Kind: "integer", Key: "level", Default: 1},
 		{Kind: "mediumtext", Key: "profile"},
+		{Kind: "integer", Key: "chips", Default: 0},
+		{Kind: "integer", Key: "bonusAt", Default: 0},
+		{Kind: "integer", Key: "rescueAt", Default: 0},
 	}, []string{"appwriteId"}},
 	{"feedback", "Feedback", []awColumn{
 		{Kind: "varchar", Key: "user", Size: 32},
