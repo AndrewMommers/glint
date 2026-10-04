@@ -203,7 +203,12 @@ func _debug_args() -> void:
 			var secs := float(spec.get_slice("@", 1))
 			quit_at = maxf(quit_at, secs + 0.5)
 			get_tree().create_timer(secs).timeout.connect(func() -> void:
-				get_viewport().get_texture().get_image().save_png(path))
+				var img := get_viewport().get_texture().get_image()
+				if path.ends_with(".jpg"):  # website screenshots: 1600x900 JPEG
+					img.resize(1600, 900, Image.INTERPOLATE_LANCZOS)
+					img.save_jpg(path, 0.86)
+				else:
+					img.save_png(path))
 	if quit_at > 0:
 		get_tree().create_timer(quit_at).timeout.connect(func() -> void:
 			Net.stop_local_servers()
