@@ -43,7 +43,7 @@ $notesEscaped = ""
 if (Test-Path $notesFile) {
     $notesEscaped = (Get-Content $notesFile -Raw) -replace "\\", "\\" -replace '"', '\"' -replace "`r", "" -replace "`n", "\n"
 }
-@"
+$cfgText = @"
 [release]
 
 version="$Version"
@@ -53,7 +53,9 @@ download_url="$downloadUrl"
 update_url="$website/release.json"
 cert="$certEscaped"
 notes="$notesEscaped"
-"@ | Set-Content $cfgPath -Encoding utf8
+"@
+# No byte-order mark: Godot's ConfigFile can't see the section after one.
+[IO.File]::WriteAllText($cfgPath, $cfgText, (New-Object System.Text.UTF8Encoding $false))
 try {
     & (Join-Path $root "export.ps1") -Godot $Godot
 } finally {

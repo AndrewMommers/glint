@@ -24,6 +24,8 @@ var _round_track := {}  # "code/round" -> counters for XP
 var _awarded := {}  # "code/round" -> award result
 var _screen := ""  # which rebuildable screen is showing (menu, account, friends)
 var _account_mode := "login"
+var _acct_draft := {}  # what's typed in the account form, kept across rebuilds
+var _busy_node: Control  # the "Signing in…" popup
 var _reconnecting := false  # trying to get back into an online game after a drop
 var _rejoin_until := 0.0  # keep retrying until then (ticks, seconds)
 var _chat: Array = []  # this room's chat, newest last
@@ -833,6 +835,48 @@ func _dialog(title: String, body: Control) -> void:
 	center.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	center.add_child(panel)
 	modal_root.add_child(center)
+
+
+## A popup with a spinner while something's happening; Cancel calls on_cancel.
+func _busy(text: String, on_cancel: Callable) -> void:
+	if _busy_node != null and is_instance_valid(_busy_node):
+		_busy_node.get_node("%BusyText").text = text
+		return
+	var root := Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.02, 0.06, 0.55)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.add_child(dim)
+	var panel := GlassPanel.new(28, 26)
+	panel.tint_alpha = 0.14
+	panel.custom_minimum_size = Vector2(380, 0)
+	var col := UI.vbox(18)
+	var spin := RingSpinner.new()
+	spin.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(spin)
+	var l := UI.label(text, 20, 700)
+	l.name = "BusyText"
+	l.unique_name_in_owner = true
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(l)
+	col.add_child(UI.button("Cancel", func() -> void:
+		_unbusy()
+		on_cancel.call()))
+	panel.add_child(col)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	center.add_child(panel)
+	root.add_child(center)
+	modal_root.add_child(root)
+	l.owner = root
+	_busy_node = root
+
+
+func _unbusy() -> void:
+	if _busy_node != null and is_instance_valid(_busy_node):
+		_busy_node.queue_free()
+	_busy_node = null
 
 
 func _close_dialog() -> void:
@@ -1760,6 +1804,10 @@ func _confirm_reset_progress() -> void:
 # ---------------------------------------------------------------- account
 
 func _on_online_changed() -> void:
+	if not Online.pending:
+		_unbusy()
+	if Online.is_signed_in():
+		_acct_draft.clear()  # don't keep passwords around
 	match _screen:
 		"account":
 			show_account()
@@ -1804,28 +1852,36 @@ func show_account() -> void:
 		_account_mode = v
 		show_account()))
 	col.add_child(UI.section("Username"))
+	var keep := func(e: LineEdit, key: String) -> void:
+		e.text = _acct_draft.get(key, e.text)
+		e.text_changed.connect(func(t: String) -> void: _acct_draft[key] = t)
 	var user := UI.line_edit(Online.username, "3–16 letters, numbers or _", 16)
+	keep.call(user, "user")
 	col.add_child(user)
 	col.add_child(UI.section("Password"))
 	var pw := UI.line_edit("", "At least 8 characters", 128)
 	pw.secret = true
+	keep.call(pw, "pw")
 	col.add_child(pw)
 	var pw2: LineEdit
 	var invite: LineEdit
 	if _account_mode == "register":
 		pw2 = UI.line_edit("", "Repeat password", 128)
 		pw2.secret = true
+		keep.call(pw2, "pw2")
 		col.add_child(pw2)
 		col.add_child(UI.section("Beta invite code"))
 		invite = UI.line_edit("", "GLINT-XXXX-XXXX (from the developer)", 20)
+		keep.call(invite, "invite")
 		col.add_child(invite)
-	var status := ""
-	if Online.status == "connecting":
-		status = "Connecting…"
-	elif Online.last_error != "":
-		status = Online.last_error
-	if status != "":
-		col.add_child(UI.label(status, 14, 600, UI.DANGER if Online.last_error != "" else UI.MUTED))
+	if Online.last_error != "" and not Online.pending:
+		var err := UI.label(Online.last_error, 14, 600, UI.DANGER)
+		err.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		col.add_child(err)
+	if Online.pending:
+		_busy("Creating your account…" if _account_mode == "register" else "Signing in…", Online.cancel_pending)
+	else:
+		_unbusy()
 	var submit := func() -> void:
 		if pw2 != null and pw2.text != pw.text:
 			toast("Passwords don't match", true)
@@ -1834,7 +1890,6 @@ func show_account() -> void:
 			toast("Enter a username (3+) and password (8+)", true)
 			return
 		Online.sign_in(Online.addr, user.text, pw.text, _account_mode == "register", invite.text if invite else "")
-		show_account()
 	var go := UI.button("Create account" if _account_mode == "register" else "Sign in", submit, true)
 	go.custom_minimum_size.y = 52
 	col.add_child(go)
@@ -2436,6 +2491,27 @@ class XPBar extends Control:
 			f.shadow_color = Color(UI.ACCENT, 0.6)
 			f.shadow_size = 8
 			draw_style_box(f, Rect2(Vector2.ZERO, Vector2(maxf(size.y, size.x * clampf(value, 0, 1)), size.y)))
+
+
+## A spinning ring for "please wait" popups.
+class RingSpinner extends Control:
+	var angle := 0.0
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(64, 64)
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _process(delta: float) -> void:
+		angle = fmod(angle + delta * TAU * 1.1, TAU)
+		queue_redraw()
+
+	func _draw() -> void:
+		var c := size * 0.5
+		var r := minf(size.x, size.y) * 0.5 - 5.0
+		draw_arc(c, r, 0.0, TAU, 64, Color(1, 1, 1, 0.12), 6.0, true)
+		# The arc breathes between short and long as it spins.
+		var span := lerpf(0.6, 2.2, 0.5 + 0.5 * sin(angle * 2.0))
+		draw_arc(c, r, angle, angle + span, 48, UI.ACCENT.lightened(0.25), 6.0, true)
 
 
 class ThemeSwatch extends Control:

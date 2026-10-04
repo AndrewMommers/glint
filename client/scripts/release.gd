@@ -13,7 +13,14 @@ static var _cfg: ConfigFile
 static func _c() -> ConfigFile:
 	if _cfg == null:
 		_cfg = ConfigFile.new()
-		_cfg.load("res://release.cfg")
+		var err := _cfg.load("res://release.cfg")
+		if err == OK and not _cfg.has_section("release") and FileAccess.file_exists("res://release.cfg"):
+			# A byte-order mark hides the [release] section from ConfigFile.
+			var text := FileAccess.get_file_as_string("res://release.cfg").trim_prefix("\ufeff")
+			_cfg = ConfigFile.new()
+			err = _cfg.parse(text)
+		if FileAccess.file_exists("res://release.cfg") or err != ERR_FILE_NOT_FOUND:
+			print("release.cfg: load %s, version %s, server %s" % [error_string(err), _cfg.get_value("release", "version", "?"), _cfg.get_value("release", "server", "?")])
 	return _cfg
 
 

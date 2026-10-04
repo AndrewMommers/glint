@@ -15,6 +15,7 @@ var username := ""
 var token := ""
 var status := "offline"  # offline, connecting, online (connected, not signed in), signed_in
 var last_error := ""
+var pending := false  # a sign-in or registration is waiting for the server
 var friends: Array = []
 var incoming: Array = []
 var outgoing: Array = []
@@ -78,6 +79,7 @@ func host_port() -> Array:
 
 func _open() -> void:
 	var hp := host_port()
+	print("account: connecting to %s:%d" % hp)
 	status = "connecting"
 	status_changed.emit()
 	_link.open(hp[0], hp[1], 2, Release.tls_for(hp[0], hp[1]))
@@ -97,12 +99,21 @@ func sign_in(server: String, user: String, password: String, register: bool, inv
 	if register and invite.strip_edges() != "":
 		msg.invite = invite.strip_edges()
 	last_error = ""
+	pending = true
+	status_changed.emit()
 	if server != addr or not _link.is_online():
 		addr = server
 		_after_connect = func() -> void: _link.send(msg)
 		_open()
 	else:
 		_link.send(msg)
+
+
+## Gives up on a sign-in that's taking too long.
+func cancel_pending() -> void:
+	pending = false
+	_after_connect = Callable()
+	status_changed.emit()
 
 
 func sign_out() -> void:
@@ -171,6 +182,7 @@ func online_friends() -> Array:
 # ---------------------------------------------------------------- link events
 
 func _on_connected() -> void:
+	print("account: connected (%s)" % ("TLS" if _link.secure else "plain"))
 	_set_status("online")
 	if _after_connect.is_valid():
 		var cb := _after_connect
@@ -187,6 +199,8 @@ func _on_connected() -> void:
 
 
 func _on_disconnected(reason: String) -> void:
+	print("account: disconnected: %s" % reason)
+	pending = false
 	var was := status
 	if _after_connect.is_valid():
 		_after_connect = Callable()
@@ -202,12 +216,14 @@ func _on_disconnected(reason: String) -> void:
 func _on_message(m: Dictionary) -> void:
 	match m.get("t"):
 		"auth_ok":
+			pending = false
 			username = m.get("username", "")
 			token = m.get("token", "")
 			_save()
 			_sync_profile(int(m.get("xp", 0)), m.get("data", null))
 			_set_status("signed_in")
 		"auth_error":
+			pending = false
 			last_error = m.get("msg", "")
 			notice.emit("error", last_error)
 			status_changed.emit()
