@@ -1,17 +1,26 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
-	"math/rand"
+	mrand "math/rand"
 	"sync"
 	"time"
 
 	"github.com/AndrewMommers/glint/server/uno"
 )
 
-const maxPlayers = 8
+const (
+	maxPlayers  = 8
+	quickSeats  = 4                // Quick Match tables are filled with bots up to this
+	quickWait   = 30 * time.Second // a lone Quick Match player waits this long before bots fill in
+	quickJoin   = 8 * time.Second  // everyone gets at least this long in the lobby after someone joins
+	quickFull   = 3 * time.Second  // countdown once the table is full
+	rejoinGrace = 3 * time.Minute  // how long a room with only dropped players stays open
+)
 
 var botNames = []string{"Nova", "Pixel", "Echo", "Luna", "Orbit", "Zephyr", "Iris", "Atlas", "Mochi", "Blitz", "Juno", "Kiwi"}
 
@@ -20,10 +29,15 @@ var emotes = map[string]bool{"GG": true, "Nice!": true, "Oops": true, "Hurry up!
 type seat struct {
 	id     string
 	name   string
-	client *Client // nil for bots
+	client *Client // nil for bots, and for players who dropped out (away)
 	diff   uno.Difficulty
 	score  int
 	prof   profile
+	token  string      // lets a player who dropped out reclaim this seat
+	away   bool        // dropped out mid-game; a bot plays until they rejoin
+	ready  bool        // lobby ready check
+	ban    string      // what keeps them out if the host kicks them (account or IP)
+	chat   []time.Time // recent chat messages, for the rate limit
 }
 
 func (s *seat) bot() bool { return s.client == nil }
@@ -42,13 +56,17 @@ type Room struct {
 	phase       string
 	settings    settings
 	game        *uno.Game
-	rng         *rand.Rand
+	rng         *mrand.Rand
 	gen         int // bumped on every state change; stale timers compare against it
 	deadline    time.Time
 	round       int
 	match       int // increments for every new match, so (match, round) is unique per room
 	roundPoints int
 	winner      string
+	quick       bool            // Quick Match room: standard rules, starts by itself
+	startAt     time.Time       // Quick Match countdown (zero when not counting down)
+	chat        []chatJ         // recent chat, replayed to anyone who joins
+	banned      map[string]bool // ban keys of kicked players
 }
 
 func newRoom(code string, hub *Hub, seed int64) *Room {
@@ -58,7 +76,7 @@ func newRoom(code string, hub *Hub, seed int64) *Room {
 		actions: make(chan func(), 128),
 		closed:  make(chan struct{}),
 		phase:   "lobby",
-		rng:     rand.New(rand.NewSource(seed)),
+		rng:     mrand.New(mrand.NewSource(seed)),
 		settings: settings{
 			Rules: uno.DefaultRules(), TurnTime: 30, TargetScore: 500,
 			Difficulty: "normal", Public: true, MaxPlayers: maxPlayers,
@@ -143,6 +161,24 @@ func (r *Room) seatIndex(id string) int {
 	return -1
 }
 
+// seatOf finds the seat c is playing in. Seats keep their id when a bot
+// takes over, so clients are matched by connection, not id.
+func (r *Room) seatOf(c *Client) int {
+	for i, s := range r.seats {
+		if s.client == c {
+			return i
+		}
+	}
+	return -1
+}
+
+func newToken() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// humans counts connected players (not bots, not players who dropped out).
 func (r *Room) humans() int {
 	n := 0
 	for _, s := range r.seats {
@@ -154,46 +190,154 @@ func (r *Room) humans() int {
 }
 
 func (r *Room) join(c *Client) error {
+	if r.banned[c.banKey()] {
+		return errors.New("the host removed you from that room")
+	}
 	if r.phase != "lobby" {
 		return errors.New("that game has already started")
 	}
 	if len(r.seats) >= r.settings.MaxPlayers {
 		return errors.New("that room is full")
 	}
-	r.seats = append(r.seats, &seat{id: c.id, name: c.name, client: c, prof: c.prof})
+	s := &seat{id: c.id, name: c.name, client: c, prof: c.prof, token: newToken(), ban: c.banKey()}
+	r.seats = append(r.seats, s)
 	if r.host == "" {
 		r.host = c.id
 	}
+	r.welcome(c, s)
+	r.sysChat(s.name + " joined")
+	r.armQuick()
 	return nil
 }
 
-func (r *Room) leave(c *Client) {
-	i := r.seatIndex(c.id)
+// welcome gives a (re)joining player their rejoin token and the chat so far.
+func (r *Room) welcome(c *Client, s *seat) {
+	c.send(map[string]any{"t": "seat", "code": r.code, "token": s.token, "id": s.id})
+	items := r.chat
+	if items == nil {
+		items = []chatJ{}
+	}
+	c.send(map[string]any{"t": "chat_history", "items": items})
+}
+
+// rejoin puts a player who dropped out back into their seat.
+func (r *Room) rejoin(c *Client, token string) error {
+	for _, s := range r.seats {
+		if token == "" || s.token != token {
+			continue
+		}
+		if s.client == c {
+			return nil
+		}
+		if old := s.client; old != nil {
+			// The old connection hasn't noticed it's dead yet; this one wins.
+			old.shutdown()
+		}
+		s.client, s.away = c, false
+		c.id = s.id
+		c.name = s.name
+		r.welcome(c, s)
+		r.sysChat(s.name + " is back")
+		r.migrateHost()
+		r.changed(nil, false)
+		return nil
+	}
+	return errors.New("your seat in that game is gone")
+}
+
+// leave takes c out of the room. dropped means the connection was lost rather
+// than the player choosing to leave: mid-game, their seat is kept for them.
+func (r *Room) leave(c *Client, dropped bool) {
+	i := r.seatOf(c)
 	if i < 0 {
 		return
 	}
 	s := r.seats[i]
-	if r.phase == "lobby" {
+	switch {
+	case r.phase == "lobby":
 		r.seats = append(r.seats[:i], r.seats[i+1:]...)
-	} else {
-		// Keep the seat so the round can continue; a bot takes over.
-		s.client = nil
-		s.diff = uno.Normal
+		r.sysChat(s.name + " left")
+	case dropped:
+		s.client, s.away, s.diff = nil, true, uno.Normal
+		r.sysChat(s.name + " lost connection. A bot plays for them until they're back")
+	default:
+		r.sysChat(s.name + " left. A bot takes over")
+		s.client, s.away, s.token, s.diff = nil, false, "", uno.Normal
 		s.name += " (bot)"
 	}
 	if r.humans() == 0 {
-		r.close()
-		return
+		if !r.anyAway() {
+			r.close()
+			return
+		}
+		// Everyone dropped: the game waits (bots don't play on) and the room
+		// stays open for a while so they can come back.
+		time.AfterFunc(rejoinGrace, func() {
+			r.post(func() {
+				if r.humans() == 0 {
+					r.close()
+				}
+			})
+		})
 	}
-	if r.host == c.id {
-		for _, o := range r.seats {
-			if !o.bot() {
-				r.host = o.id
-				break
-			}
+	r.migrateHost()
+	r.changed(nil, false)
+}
+
+func (r *Room) anyAway() bool {
+	for _, s := range r.seats {
+		if s.away {
+			return true
 		}
 	}
+	return false
+}
+
+// migrateHost hands the host role to a connected player if the host isn't one.
+func (r *Room) migrateHost() {
+	if i := r.seatIndex(r.host); i >= 0 && r.seats[i].client != nil {
+		return
+	}
+	for _, o := range r.seats {
+		if o.client != nil {
+			if r.host != "" && r.host != o.id {
+				r.sysChat(o.name + " is now the host")
+			}
+			r.host = o.id
+			return
+		}
+	}
+}
+
+// kick removes seat j. Humans can't come back; mid-game a bot takes the seat.
+func (r *Room) kick(j int) error {
+	s := r.seats[j]
+	if s.client == nil && !s.away {
+		if r.phase != "lobby" {
+			return errors.New("bots can only be removed in the lobby")
+		}
+		r.seats = append(r.seats[:j], r.seats[j+1:]...)
+		r.armQuick()
+		r.changed(nil, false)
+		return nil
+	}
+	if s.client != nil {
+		s.client.send(map[string]any{"t": "kicked", "msg": "The host removed you from the room."})
+		s.client.roomCode_.Store("")
+	}
+	if r.banned == nil {
+		r.banned = map[string]bool{}
+	}
+	r.banned[s.ban] = true
+	r.sysChat(s.name + " was removed by the host")
+	if r.phase == "lobby" {
+		r.seats = append(r.seats[:j], r.seats[j+1:]...)
+	} else {
+		s.client, s.away, s.token, s.diff = nil, false, "", uno.Normal
+		s.name += " (bot)"
+	}
 	r.changed(nil, false)
+	return nil
 }
 
 func (r *Room) addBot(diff uno.Difficulty) error {
@@ -223,17 +367,76 @@ func (r *Room) addBot(diff uno.Difficulty) error {
 	return nil
 }
 
+// ---- Quick Match ----
+
+// armQuick (re)starts the Quick Match countdown after the lobby changed.
+func (r *Room) armQuick() {
+	if !r.quick || r.phase != "lobby" {
+		return
+	}
+	now := time.Now()
+	switch {
+	case len(r.seats) >= r.settings.MaxPlayers:
+		r.startAt = now.Add(quickFull)
+	case r.startAt.IsZero():
+		r.startAt = now.Add(quickWait)
+	case r.startAt.Sub(now) < quickJoin:
+		r.startAt = now.Add(quickJoin)
+	}
+	at := r.startAt
+	time.AfterFunc(time.Until(at), func() {
+		r.post(func() {
+			if r.quick && r.phase == "lobby" && r.startAt.Equal(at) {
+				r.quickStart()
+			}
+		})
+	})
+}
+
+func (r *Room) quickStart() {
+	for len(r.seats) < quickSeats {
+		if r.addBot(uno.Normal) != nil {
+			break
+		}
+	}
+	r.startAt = time.Time{}
+	if err := r.start(); err != nil {
+		log.Printf("room %s: quick start: %v", r.code, err)
+	}
+}
+
+// ---- chat ----
+
+type chatOut struct {
+	T string `json:"t"`
+	chatJ
+}
+
+func (r *Room) addChat(m chatJ) {
+	r.chat = append(r.chat, m)
+	if len(r.chat) > chatHistory {
+		r.chat = r.chat[len(r.chat)-chatHistory:]
+	}
+	r.broadcastRaw(chatOut{T: "chat", chatJ: m})
+}
+
+func (r *Room) sysChat(text string) { r.addChat(chatJ{Text: text, Sys: true}) }
+
 // ---- messages ----
 
 func (r *Room) handle(c *Client, m inMsg) {
-	i := r.seatIndex(c.id)
+	i := r.seatOf(c)
 	if i < 0 {
 		return
 	}
-	isHost := c.id == r.host
+	isHost := r.seats[i].id == r.host
 	var err error
 	switch m.T {
 	case "settings":
+		if r.quick {
+			err = errors.New("Quick Match tables use the standard rules")
+			break
+		}
 		if !isHost || r.phase == "playing" {
 			err = errors.New("only the host can change settings between rounds")
 			break
@@ -259,13 +462,62 @@ func (r *Room) handle(c *Client, m inMsg) {
 			break
 		}
 		r.seats = append(r.seats[:j], r.seats[j+1:]...)
+		r.armQuick()
 		r.changed(nil, false)
 	case "start":
 		if !isHost {
 			err = errors.New("only the host can start the game")
 			break
 		}
+		if r.phase == "lobby" && r.quick {
+			r.quickStart()
+			break
+		}
+		if r.phase == "lobby" {
+			for _, s := range r.seats {
+				if s.client != nil && s.id != r.host && !s.ready {
+					err = fmt.Errorf("waiting for %s to get ready", s.name)
+					break
+				}
+			}
+			if err != nil {
+				break
+			}
+		}
 		err = r.start()
+	case "ready":
+		if r.phase == "lobby" && r.seats[i].ready != m.Ready {
+			r.seats[i].ready = m.Ready
+			r.changed(nil, false)
+		}
+	case "kick":
+		j := r.seatIndex(m.Target)
+		if !isHost || j < 0 || j == i {
+			err = errors.New("can't remove that player")
+			break
+		}
+		err = r.kick(j)
+	case "make_host":
+		j := r.seatIndex(m.Target)
+		if !isHost || j < 0 || j == i || r.seats[j].client == nil {
+			err = errors.New("can't make that player the host")
+			break
+		}
+		r.host = r.seats[j].id
+		r.sysChat(r.seats[j].name + " is now the host")
+		r.changed(nil, false)
+	case "chat":
+		s := r.seats[i]
+		text := cleanChat(m.Text)
+		if text == "" {
+			break
+		}
+		var ok bool
+		if s.chat, ok = allowChat(s.chat, time.Now()); !ok {
+			err = errors.New("you're sending messages too fast")
+			break
+		}
+		r.addChat(chatJ{Player: s.id, Name: s.name, Text: text})
 	case "emote":
 		if emotes[m.Text] {
 			r.broadcastRaw(map[string]any{"t": "emote", "player": c.id, "text": m.Text})
@@ -367,8 +619,8 @@ func (r *Room) changed(ev []uno.Event, resetTimer bool) {
 }
 
 func (r *Room) schedule() {
-	if r.phase != "playing" {
-		return
+	if r.phase != "playing" || r.humans() == 0 {
+		return // nobody's connected: wait for someone to rejoin
 	}
 	g := r.game
 	turn := r.seats[g.Turn]
@@ -449,13 +701,16 @@ func (r *Room) stateFor(viewer int, ev []uno.Event) stateJ {
 	st := stateJ{
 		T: "state", Code: r.code, Phase: r.phase, You: r.idAt(viewer), Host: r.host,
 		Settings: r.settings, Round: r.round, Match: r.match, Drawn: -1, Hand: []cardJ{}, Playable: []int{},
-		Events: []eventJ{}, Winner: r.winner, RoundPoints: r.roundPoints, Dir: 1,
+		Events: []eventJ{}, Winner: r.winner, RoundPoints: r.roundPoints, Dir: 1, Quick: r.quick,
+	}
+	if r.quick && r.phase == "lobby" && !r.startAt.IsZero() {
+		st.StartsIn = time.Until(r.startAt).Seconds()
 	}
 	g := r.game
 	for i, s := range r.seats {
-		p := playerJ{ID: s.id, Name: s.name, Bot: s.bot(), Host: s.id == r.host, Score: s.score,
-			Back: s.prof.Back, Frame: s.prof.Frame, Level: s.prof.Level}
-		if s.bot() {
+		p := playerJ{ID: s.id, Name: s.name, Bot: s.bot() && !s.away, Host: s.id == r.host, Score: s.score,
+			Back: s.prof.Back, Frame: s.prof.Frame, Level: s.prof.Level, Away: s.away, Ready: s.ready}
+		if s.bot() && !s.away {
 			p.Difficulty = s.diff.String()
 		}
 		if g != nil && r.phase != "lobby" && i < len(g.Players) {
@@ -530,7 +785,7 @@ func (r *Room) publishInfo() {
 		if i := r.seatIndex(r.host); i >= 0 {
 			hostName = r.seats[i].name
 		}
-		info = &roomInfo{Code: r.code, Host: hostName, Players: len(r.seats), Max: r.settings.MaxPlayers}
+		info = &roomInfo{Code: r.code, Host: hostName, Players: len(r.seats), Max: r.settings.MaxPlayers, Quick: r.quick}
 	}
 	r.hub.setInfo(r.code, info)
 }

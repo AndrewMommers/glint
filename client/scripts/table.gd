@@ -48,6 +48,7 @@ var btn_catch: Button
 var info_label := UI.label("", 15, 500, UI.MUTED)
 var code_label := UI.label("", 15, 800)
 var emote_row: HBoxContainer
+var chat_input: LineEdit  # null in singleplayer or with chat turned off
 var hand_tray := GlassPanel.new(0, 30)
 var dock := GlassPanel.new(14, 22)
 var activity := GlassPanel.new(16, 20)
@@ -215,6 +216,19 @@ func _build_hud() -> void:
 	var act := UI.vbox(8)
 	act.add_child(UI.section("Activity"))
 	act.add_child(log_box)
+	if Settings.v("chat") and not singleplayer:
+		chat_input = UI.line_edit("", "Press Enter to chat", ChatBox.MAX_LEN)
+		chat_input.custom_minimum_size = Vector2(300, 38)
+		chat_input.text_submitted.connect(func(t: String) -> void:
+			ChatBox.send(t)
+			chat_input.clear()
+			chat_input.release_focus())
+		chat_input.gui_input.connect(func(e: InputEvent) -> void:
+			if e is InputEventKey and e.pressed and e.keycode == KEY_ESCAPE:
+				chat_input.release_focus()
+				chat_input.accept_event())
+		act.add_child(chat_input)
+		log_box.custom_minimum_size.y = 132
 	activity.add_child(act)
 	activity.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(activity)
@@ -861,6 +875,18 @@ func _log(text: String) -> void:
 	var l := UI.label(text, 14, 500, Color(1, 1, 1, 0.8))
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_push_log(l)
+
+
+func add_chat(e: Dictionary) -> void:
+	if chat_input == null:
+		return
+	if not e.get("sys", false):
+		Audio.play("pop")
+	_push_log(ChatBox.line(e, 14))
+
+
+func _push_log(l: Control) -> void:
 	l.custom_minimum_size = Vector2(300, 0)
 	log_box.add_child(l)
 	while log_box.get_child_count() > 7:
@@ -958,6 +984,10 @@ func _unhandled_key_input(e: InputEvent) -> void:
 	match e.keycode:
 		KEY_ESCAPE:
 			options_requested.emit()
+		KEY_ENTER, KEY_KP_ENTER, KEY_T:
+			if chat_input != null:
+				chat_input.grab_focus()
+				get_viewport().set_input_as_handled()
 		KEY_D, KEY_SPACE:
 			_do_draw()
 		KEY_P:
@@ -1098,6 +1128,10 @@ func _show_results() -> void:
 			Net.send({"t": "start"}), true, 180))
 	else:
 		row.add_child(UI.label("Waiting for the host…", 16, 500, UI.MUTED))
+	if st.get("quick", false):
+		row.add_child(UI.button("New match", func() -> void:
+			_close_modal()
+			Net.send({"t": "quick"}), false, 150))
 	row.add_child(UI.button("Leave", func() -> void: leave_requested.emit(), false, 120))
 	if results_hook.is_valid():
 		results_hook.call(st, body, row)

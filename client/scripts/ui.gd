@@ -13,6 +13,7 @@ const ACCENT := Color("8b6cff")
 const TEXT := Color(1, 1, 1, 0.95)
 const MUTED := Color(1, 1, 1, 0.58)
 const DANGER := Color("ff5a7a")
+const SUCCESS := Color("2fd08a")
 
 static var _fonts := {}
 

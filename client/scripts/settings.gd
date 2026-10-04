@@ -19,6 +19,7 @@ var values := {
 	"reduce_motion": false,
 	"timer_ticks": true,
 	"key_hints": true,
+	"chat": true,
 }
 
 

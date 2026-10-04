@@ -34,9 +34,13 @@ On macOS/Linux, run `./build.sh` instead (it builds `client/bin/glint-server`).
 
 ### Closed beta
 
-The beta runs on a server on this PC. It's encrypted with a pinned self-signed certificate, registration needs an invite code, outdated builds are told to update, and testers can send feedback from inside the game. See [`beta/HOSTING.md`](beta/HOSTING.md) for:
+The beta server runs on a Vultr VPS (or on this PC). It's encrypted with a pinned self-signed certificate, registration needs an invite code, outdated builds are told to update, and testers can send feedback from inside the game.
 
-- running the server with `beta\run-server.ps1`
+- [`deploy/VPS.md`](deploy/VPS.md): setting up the VPS, then `deploy\deploy.cmd` to ship server builds and `deploy\server.cmd` for status, logs and invites
+
+See [`beta/HOSTING.md`](beta/HOSTING.md) for:
+
+- running the server on this PC with `beta\run-server.ps1`
 - managing invites with `beta\invites.ps1`
 - reading feedback with `beta\feedback.ps1`
 - shipping builds with `release.ps1`
@@ -48,7 +52,14 @@ cd server
 go run . -addr :7777
 ```
 
-Players open **Multiplayer**, enter `your-host:7777`, and then create or join a room. *Host on this PC* does the same thing on the local machine (port 7777, all interfaces). The lobby shows your LAN IPs so friends know where to connect.
+Players open **Multiplayer**, enter `your-host:7777`, and then create or join a room, or press **Quick Match**. *Host on this PC* does the same thing on the local machine (port 7777, all interfaces). The lobby shows your LAN IPs so friends know where to connect.
+
+### Online play
+
+- **Quick Match** puts you at the fullest open 4-seat Quick Match table, or opens a new one. It uses the standard rules with 20-second turns and a single round. It starts 30 seconds after the first player arrives (at least 8 seconds after anyone joins, or 3 seconds once it's full), and bots fill the empty seats. The host can press *Start now*.
+- **Lobby hosts** can remove players (who can't rejoin that room), hand the host role to someone else, and must wait for everyone to press *I'm ready* before starting. If the host leaves, the role moves to another player.
+- **Rejoining.** If your connection drops or the game closes mid-round, a bot plays your seat. The game reconnects you automatically for 90 seconds, and the main menu offers *Rejoin* after a restart. The server holds the seat for the rest of the match, and if every player drops, it pauses the game and keeps the room for 3 minutes. Clients send a ping every 5 seconds, so dead connections are noticed in seconds.
+- **Chat** works in lobbies and at the table: press `Enter` or `T`. Messages are limited to 140 characters and 5 per 10 seconds, with a profanity mask, and joins, leaves and host changes appear as system lines. It can be turned off in Options.
 
 ### Building the standalone game (Glint.exe)
 

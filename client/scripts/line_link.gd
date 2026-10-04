@@ -147,7 +147,12 @@ func _process(_d: float) -> void:
 
 
 func _lost() -> void:
-	_state = "idle"
-	_tls = null
-	_buf.clear()
-	disconnected.emit("Lost connection to %s" % host)
+	drop("Lost connection to %s" % host)
+
+
+## Closes a connection that has gone quiet and reports it as lost.
+func drop(reason: String) -> void:
+	if _state != "connected":
+		return
+	close()
+	disconnected.emit(reason)

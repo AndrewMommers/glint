@@ -110,6 +110,26 @@ func (h *Hub) setInfo(code string, info *roomInfo) {
 	}
 }
 
+// quickRooms lists Quick Match lobbies with a free seat, fullest first.
+func (h *Hub) quickRooms() []*Room {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	var infos []roomInfo
+	for _, i := range h.info {
+		if i.Quick && i.Players < i.Max {
+			infos = append(infos, i)
+		}
+	}
+	sort.Slice(infos, func(a, b int) bool { return infos[a].Players > infos[b].Players })
+	var out []*Room
+	for _, i := range infos {
+		if r := h.rooms[i.Code]; r != nil {
+			out = append(out, r)
+		}
+	}
+	return out
+}
+
 func (h *Hub) publicRooms() []roomInfo {
 	h.mu.Lock()
 	defer h.mu.Unlock()

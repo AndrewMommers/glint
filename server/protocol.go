@@ -13,18 +13,29 @@ import (
 //   hello    {name}
 //   list     {}                                   -> rooms
 //   create   {name?, bots, settings}              -> state
-//   join     {code}                               -> state
+//   join     {code}                               -> seat, chat_history, state
+//   quick    {}            Quick Match: join or open a table -> seat, chat_history, state
+//   rejoin   {code, token} back into a seat after a dropped connection -> seat, chat_history, state
 //   leave    {}                                   -> left
 //   settings {settings}           (host, lobby)
 //   add_bot  {difficulty?}        (host, lobby)
 //   remove_bot {target}           (host, lobby)
 //   start    {}                   (host; also starts the next round)
+//   ready    {ready}              (lobby ready check)
+//   kick     {target}             (host; mid-game a bot takes the seat)
+//   make_host {target}            (host)
+//   chat     {text}
 //   play     {card, color?, target?, uno?}
 //   draw / pass / uno / catch {}
 //   emote    {text}
 //   ping     {}                                   -> pong
 //
-// Server -> client: welcome, state, rooms, error, emote, left, pong.
+// Server -> client: welcome, state, rooms, error, emote, left, pong, seat
+// {code, token, id}, chat {player, name, text, sys}, chat_history {items},
+// kicked {msg}.
+//
+// Clients that send ping are expected to keep doing so: after the first ping
+// the server drops the connection if it hears nothing for pingTimeout.
 
 type inMsg struct {
 	T          string          `json:"t"`
@@ -37,6 +48,7 @@ type inMsg struct {
 	Color      string          `json:"color"`
 	Target     string          `json:"target"`
 	Uno        bool            `json:"uno"`
+	Ready      bool            `json:"ready"`
 	Text       string          `json:"text"`
 	Profile    *profile        `json:"profile"`
 	Username   string          `json:"username"`
@@ -139,6 +151,8 @@ type playerJ struct {
 	Back       string `json:"back"`
 	Frame      string `json:"frame"`
 	Level      int    `json:"level"`
+	Away       bool   `json:"away,omitempty"`  // dropped out; a bot plays until they rejoin
+	Ready      bool   `json:"ready,omitempty"` // lobby ready check
 }
 
 type eventJ struct {
@@ -175,6 +189,8 @@ type stateJ struct {
 	Events      []eventJ  `json:"events"`
 	Winner      string    `json:"winner,omitempty"`
 	RoundPoints int       `json:"roundPoints"`
+	Quick       bool      `json:"quick,omitempty"`    // Quick Match table
+	StartsIn    float64   `json:"startsIn,omitempty"` // Quick Match countdown, seconds
 }
 
 type roomInfo struct {
@@ -182,4 +198,5 @@ type roomInfo struct {
 	Host    string `json:"host"`
 	Players int    `json:"players"`
 	Max     int    `json:"max"`
+	Quick   bool   `json:"quick,omitempty"`
 }

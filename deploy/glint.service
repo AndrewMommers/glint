@@ -1,0 +1,30 @@
+[Unit]
+Description=Glint game server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=glint
+Group=glint
+WorkingDirectory=/opt/glint
+# GLINT_FLAGS (Appwrite, min client version) is written by deploy.ps1.
+EnvironmentFile=-/opt/glint/glint.env
+ExecStart=/opt/glint/glint-server -addr :7777 -data /opt/glint/data -tls -invite-only $GLINT_FLAGS
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+# Sandboxing: the server only needs to write its data directory.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/opt/glint/data
+
+[Install]
+WantedBy=multi-user.target

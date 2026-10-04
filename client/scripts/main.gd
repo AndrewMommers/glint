@@ -24,6 +24,13 @@ var _round_track := {}  # "code/round" -> counters for XP
 var _awarded := {}  # "code/round" -> award result
 var _screen := ""  # which rebuildable screen is showing (menu, account, friends)
 var _account_mode := "login"
+var _reconnecting := false  # trying to get back into an online game after a drop
+var _rejoin_until := 0.0  # keep retrying until then (ticks, seconds)
+var _chat: Array = []  # this room's chat, newest last
+var _chat_box: ChatBox
+var _chat_draft := ""
+var _countdown: Label  # Quick Match "Starting in…"
+var _quick_at := 0.0
 
 # Settings edited before a room exists (quick play / create room).
 var setup := {
@@ -79,6 +86,10 @@ func _ready() -> void:
 	Net.message.connect(_net_message)
 	show_menu()
 	_debug_args()
+	if Net.has_rejoinable_seat():
+		get_tree().create_timer(2.5).timeout.connect(func() -> void:
+			if Net.has_rejoinable_seat() and not Net.is_online():
+				toast_action("You dropped out of an online game.", "Rejoin", _try_rejoin))
 	# Branded boot screen on top of the (already built) menu.
 	var skip_loader := false
 	for a in OS.get_cmdline_user_args():
@@ -145,6 +156,17 @@ func _debug_args() -> void:
 			var fb_text := a.get_slice("=", 1)
 			get_tree().create_timer(2.0).timeout.connect(func() -> void:
 				Online.send_feedback("bug", fb_text, _feedback_info(), _log_tail()))
+		elif a.begins_with("--connect="):
+			server_addr = a.get_slice("=", 1)
+		elif a.begins_with("--mp="):
+			# --mp=quick | create | join:CODE  (on the --connect server)
+			var what := a.get_slice("=", 1)
+			if what == "quick":
+				_quick.call_deferred()
+			elif what == "create":
+				_create_remote.call_deferred()
+			elif what.begins_with("join:"):
+				_join.call_deferred(what.get_slice(":", 1))
 		elif a.begins_with("--stage="):
 			_start_stage.call_deferred(int(a.get_slice("=", 1)))
 		elif a.begins_with("--fake-win="):
@@ -212,6 +234,8 @@ func _fake_win(stage: int, match_no: int = 1, private_guest: bool = false) -> vo
 
 
 func _process(_d: float) -> void:
+	if _countdown != null and Engine.get_process_frames() % 10 == 0:
+		_update_countdown()
 	# --autoplay: play the first legal card for us (for testing the table).
 	if not has_meta("autoplay") or table == null or not table.is_my_turn():
 		return
@@ -426,7 +450,7 @@ func show_menu() -> void:
 			cleared += 1
 	left.add_child(_nav("Campaign", "%d / %d levels cleared  ·  ★ %d" % [cleared, Cosmetics.STAGES.size(), Profile.total_stars()], show_campaign, true))
 	left.add_child(_nav("Quick Play", "You vs bots with your own house rules", show_singleplayer))
-	left.add_child(_nav("Multiplayer", "Host on your network or join a server", show_multiplayer))
+	left.add_child(_nav("Multiplayer", "Quick Match, host, or join a room", show_multiplayer))
 	var pair := UI.hbox(12)
 	pair.add_child(_nav("Customize", "Backs · themes · frames", show_customize))
 	pair.add_child(_nav("Profile", "Stats & unlocks", show_profile))
@@ -1070,6 +1094,7 @@ func _connecting(text: String) -> void:
 	tip.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(tip)
 	col.add_child(UI.button("Cancel", func() -> void:
+		_reconnecting = false
 		Net.close()
 		show_menu()))
 	p.add_child(col)
@@ -1082,7 +1107,13 @@ func show_multiplayer() -> void:
 	_decor()
 	var p := _card(640)
 	var col := UI.vbox(16)
-	col.add_child(_header("Multiplayer", "Host a table on this PC for friends on your network, or connect to any Glint server.", show_menu))
+	col.add_child(_header("Multiplayer", "Jump into a quick game, host a table on this PC, or connect to any Glint server.", show_menu))
+
+	var quick := UI.button("⚡  Quick Match", _quick, true)
+	quick.custom_minimum_size = Vector2(0, 64)
+	quick.add_theme_font_size_override("font_size", 22)
+	quick.tooltip_text = "Join a 4-player table with other players. Bots fill any empty seats."
+	col.add_child(quick)
 
 	col.add_child(UI.section("Server"))
 	var row := UI.hbox(10)
@@ -1141,6 +1172,25 @@ func _with_server(then: Callable) -> void:
 	Net.connect_to(a[0], a[1], 1)
 
 
+func _quick() -> void:
+	_with_server(func() -> void: Net.send({"t": "quick", "name": _name()}))
+
+
+## Reconnects to the server we dropped from and asks for our seat back.
+func _try_rejoin() -> void:
+	var s := Net.seat
+	if s.is_empty():
+		return
+	singleplayer = false
+	if not _reconnecting:
+		_rejoin_until = Time.get_ticks_msec() / 1000.0 + 90.0
+	_reconnecting = true
+	_connecting("Reconnecting to your game…")
+	_on_connected = func() -> void:
+		Net.send({"t": "rejoin", "code": s.code, "token": s.token})
+	Net.connect_to(str(s.host), int(s.port), 10)
+
+
 func _browse() -> void:
 	_with_server(func() -> void: Net.send({"t": "list"}))
 
@@ -1189,7 +1239,7 @@ func _show_rooms(rooms: Array) -> void:
 		_rooms_box.add_child(UI.label("No open rooms right now — host one!", 15, 500, UI.MUTED))
 	for r in rooms:
 		var row := UI.hbox(12)
-		var l := UI.label("%s's table" % r.host, 17, 650)
+		var l := UI.label("Quick Match" if r.get("quick", false) else "%s's table" % r.host, 17, 650)
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(l)
 		row.add_child(UI.label("%d / %d" % [r.players, r.max], 15, 500, UI.MUTED))
@@ -1202,18 +1252,30 @@ func _show_rooms(rooms: Array) -> void:
 # ---------------------------------------------------------------- lobby
 
 func show_lobby(st: Dictionary) -> void:
+	if st.get("quick", false):
+		_quick_at = Time.get_ticks_msec() / 1000.0 + float(st.get("startsIn", 0.0))
 	# Rebuild only when something visible changed, so toggles don't flicker.
 	var sig := JSON.stringify([st.players, st.settings, st.host])
 	if sig == _lobby_sig:
 		return
+	# Keep a half-typed chat message across the rebuild.
+	var typing := _chat_box != null and is_instance_valid(_chat_box) and _chat_box.input.has_focus()
+	if _chat_box != null and is_instance_valid(_chat_box):
+		_chat_draft = _chat_box.input.text
 	_clear()
 	_lobby_sig = sig
 	var is_host: bool = st.host == st.you
-	var p := _card(760)
+	var quick: bool = st.get("quick", false)
+	var show_chat: bool = Settings.v("chat") and not singleplayer
+	var p := _card(1160 if show_chat else 760)
+	var outer := UI.hbox(28)
 	var col := UI.vbox(18)
+	col.custom_minimum_size = Vector2(760, 0)
+	outer.add_child(col)
 
 	var head := UI.hbox(16)
-	var t := _title("Lobby", "Share the code with friends. The host picks the rules.")
+	var t := _title("Quick Match", "Starts by itself. Bots fill any empty seats.") if quick \
+		else _title("Lobby", "Share the code with friends. The host picks the rules.")
 	t.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(t)
 	var code_btn := UI.button(st.code, func() -> void:
@@ -1225,9 +1287,9 @@ func show_lobby(st: Dictionary) -> void:
 	code_btn.tooltip_text = "Click to copy"
 	head.add_child(code_btn)
 	col.add_child(head)
-	if is_host and not singleplayer:
+	if is_host and not singleplayer and not quick:
 		var ips := Net.local_ips()
-		if not ips.is_empty():
+		if not ips.is_empty() and server_addr.begins_with("127.0.0.1"):
 			col.add_child(UI.label("Friends on your network connect to:  %s" % "  ·  ".join(ips), 14, 500, UI.MUTED))
 
 	col.add_child(UI.section("Players  %d / %d" % [st.players.size(), st.settings.get("maxPlayers", 8)]))
@@ -1235,48 +1297,30 @@ func show_lobby(st: Dictionary) -> void:
 	grid.columns = 2
 	grid.add_theme_constant_override("h_separation", 10)
 	grid.add_theme_constant_override("v_separation", 10)
+	var waiting_on := []  # players the host is waiting on to ready up
 	for pl in st.players:
-		var chip := PanelContainer.new()
-		chip.add_theme_stylebox_override("panel", UI.flat(Color(1, 1, 1, 0.07), 14, Color(1, 1, 1, 0.15), 1))
-		chip.custom_minimum_size = Vector2(340, 0)
-		var row := UI.hbox(10)
-		var av := SeatView.Avatar.new()
-		av.letter = str(pl.name).substr(0, 1).to_upper()
-		av.color = UI.avatar_color(pl.name)
-		av.is_bot = pl.bot
-		av.frame = pl.get("frame", "")
-		av.level = int(pl.get("level", 0))
-		row.add_child(av)
-		var nm: String = pl.name + ("  (you)" if pl.id == st.you else "") + ("  ♛" if pl.host else "")
-		var l := UI.label(nm, 17, 650)
-		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		l.size_flags_vertical = Control.SIZE_FILL
-		row.add_child(l)
-		if pl.bot:
-			row.add_child(UI.label(str(pl.get("difficulty", "")).capitalize(), 14, 500, UI.MUTED))
-			if is_host:
-				var id: String = pl.id
-				var x := UI.button("✕", func() -> void: Net.send({"t": "remove_bot", "target": id}))
-				x.custom_minimum_size = Vector2(38, 38)
-				row.add_child(x)
-		chip.add_child(row)
-		grid.add_child(chip)
+		grid.add_child(_lobby_chip(pl, st, is_host, quick))
+		if not pl.bot and not pl.host and not pl.get("ready", false):
+			waiting_on.append(pl.name)
 	col.add_child(grid)
 
 	var settings_box := UI.vbox(16)
 	settings_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	settings_box.add_child(_presets_section(st.settings.duplicate(true), is_host, func(s: Dictionary) -> void:
-		setup.settings = s.duplicate(true)
-		_save_config()
-		Net.send({"t": "settings", "settings": s})))
-	settings_box.add_child(_rules_editor(st.settings.duplicate(true), is_host, func(s: Dictionary) -> void:
+	var editable := is_host and not quick
+	if quick:
+		settings_box.add_child(UI.label("Standard rules · 7 cards · %ds turns · one round" % int(st.settings.get("turnTime", 20)), 15, 600, UI.MUTED))
+	if not quick:
+		settings_box.add_child(_presets_section(st.settings.duplicate(true), editable, func(s: Dictionary) -> void:
+			setup.settings = s.duplicate(true)
+			_save_config()
+			Net.send({"t": "settings", "settings": s})))
+	settings_box.add_child(_rules_editor(st.settings.duplicate(true), editable, func(s: Dictionary) -> void:
 		setup.settings = s.duplicate(true)
 		_save_config()
 		Net.send({"t": "settings", "settings": s}), true))
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(0, 400)
+	scroll.custom_minimum_size = Vector2(0, 360)
 	scroll.add_child(settings_box)
 	col.add_child(scroll)
 
@@ -1285,21 +1329,119 @@ func show_lobby(st: Dictionary) -> void:
 	if Online.is_signed_in() and not singleplayer:
 		row.add_child(UI.button("Invite friends", _invite_dialog, false, 150))
 	row.add_child(UI.spacer(0, 0, true))
-	if is_host:
+	if quick:
+		_countdown = UI.label("", 16, 600, UI.MUTED)
+		_countdown.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_countdown.size_flags_vertical = Control.SIZE_FILL
+		row.add_child(_countdown)
+		if is_host:
+			var now := UI.button("Start now", func() -> void: Net.send({"t": "start"}), true, 160)
+			now.tooltip_text = "Start right away. Bots take the empty seats."
+			row.add_child(now)
+	elif is_host:
 		var add := UI.button("+ Add bot", func() -> void: Net.send({"t": "add_bot"}), false, 150)
 		add.disabled = st.players.size() >= st.settings.get("maxPlayers", 8)
 		row.add_child(add)
 		var start := UI.button("Start game", func() -> void: Net.send({"t": "start"}), true, 180)
-		start.disabled = st.players.size() < 2
+		start.disabled = st.players.size() < 2 or not waiting_on.is_empty()
+		if not waiting_on.is_empty():
+			start.tooltip_text = "Waiting for %s to get ready" % ", ".join(waiting_on)
 		row.add_child(start)
 	else:
-		row.add_child(UI.label("Waiting for the host to start…", 16, 500, UI.MUTED))
+		var me := {}
+		for pl in st.players:
+			if pl.id == st.you:
+				me = pl
+		var ready: bool = me.get("ready", false)
+		row.add_child(UI.label("Waiting for the host…" if ready else "Ready up so the host can start", 15, 500, UI.MUTED))
+		var rb := UI.button("Ready ✓" if ready else "I'm ready", func() -> void: Net.send({"t": "ready", "ready": not ready}), not ready, 160)
+		row.add_child(rb)
 	col.add_child(row)
-	p.add_child(col)
+
+	if show_chat:
+		_chat_box = ChatBox.new(560)
+		_chat_box.custom_minimum_size = Vector2(320, 0)
+		_chat_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		_chat_box.set_history(_chat)
+		_chat_box.input.text = _chat_draft
+		outer.add_child(_chat_box)
+		if typing:
+			_chat_box.input.grab_focus.call_deferred()
+			_chat_box.input.caret_column = _chat_draft.length()
+	p.add_child(outer)
+	_update_countdown()
+
+
+func _lobby_chip(pl: Dictionary, st: Dictionary, is_host: bool, quick: bool) -> PanelContainer:
+	var chip := PanelContainer.new()
+	var ready: bool = pl.get("ready", false) and not pl.host
+	chip.add_theme_stylebox_override("panel", UI.flat(Color(1, 1, 1, 0.07), 14, Color(UI.SUCCESS, 0.6) if ready else Color(1, 1, 1, 0.15), 1))
+	chip.custom_minimum_size = Vector2(370, 0)
+	var row := UI.hbox(8)
+	var av := SeatView.Avatar.new()
+	av.letter = str(pl.name).substr(0, 1).to_upper()
+	av.color = UI.avatar_color(pl.name)
+	av.is_bot = pl.bot
+	av.frame = pl.get("frame", "")
+	av.level = int(pl.get("level", 0))
+	row.add_child(av)
+	var nm: String = pl.name + ("  (you)" if pl.id == st.you else "") + ("  ♛" if pl.host else "")
+	var l := UI.label(nm, 17, 650)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	l.size_flags_vertical = Control.SIZE_FILL
+	l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	row.add_child(l)
+	var id: String = pl.id
+	var small := func(text: String, tip: String, cb: Callable) -> Button:
+		var b := UI.button(text, cb)
+		b.custom_minimum_size = Vector2(38, 38)
+		b.tooltip_text = tip
+		return b
+	if pl.bot:
+		row.add_child(UI.label(str(pl.get("difficulty", "")).capitalize(), 14, 500, UI.MUTED))
+		if is_host:
+			row.add_child(small.call("✕", "Remove bot", func() -> void: Net.send({"t": "remove_bot", "target": id})))
+	else:
+		if ready:
+			row.add_child(UI.label("Ready", 14, 700, UI.SUCCESS))
+		if is_host and id != st.you:
+			var who: String = pl.name
+			if not quick:
+				row.add_child(small.call("♛", "Make %s the host" % who, func() -> void: Net.send({"t": "make_host", "target": id})))
+			row.add_child(small.call("✕", "Remove %s from the room" % who, func() -> void: _confirm_kick(id, who)))
+	chip.add_child(row)
+	return chip
+
+
+func _confirm_kick(id: String, who: String) -> void:
+	var body := UI.vbox(16)
+	var l := UI.label("%s will be removed and can't rejoin this room." % who, 16, 500, UI.MUTED)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size = Vector2(380, 0)
+	body.add_child(l)
+	var row := UI.hbox(10)
+	row.add_child(UI.spacer(0, 0, true))
+	row.add_child(UI.button("Cancel", _close_dialog))
+	var kick := UI.button("Remove", func() -> void:
+		Net.send({"t": "kick", "target": id})
+		_close_dialog())
+	UI.style_button(kick, Color(UI.DANGER, 0.8))
+	row.add_child(kick)
+	body.add_child(row)
+	_dialog("Remove %s?" % who, body)
+
+
+func _update_countdown() -> void:
+	if _countdown == null or not is_instance_valid(_countdown):
+		return
+	var left := ceili(_quick_at - Time.get_ticks_msec() / 1000.0)
+	_countdown.text = "Starting in %ds" % left if left > 0 else "Starting…"
 
 
 func _leave() -> void:
 	Net.send({"t": "leave"})
+	Net.clear_seat()
 	if singleplayer:
 		var back_to_campaign := campaign_stage >= 0
 		Net.close()
@@ -1542,6 +1684,7 @@ func _options_body() -> HBoxContainer:
 			Profile.save()))
 	right.add_child(UI.toggle("Turn timer ticks", "Tick during the last 5 seconds of your turn.", Settings.v("timer_ticks"), setv.call("timer_ticks")))
 	right.add_child(UI.toggle("Keyboard hints", "Show shortcut keys on the action buttons.", Settings.v("key_hints"), setv.call("key_hints")))
+	right.add_child(UI.toggle("Chat", "Show chat in online lobbies and games.", Settings.v("chat"), setv.call("chat")))
 	right.add_child(UI.toggle("Reduce motion", "No screen shake, confetti or floating menu cards.", Settings.v("reduce_motion"), setv.call("reduce_motion")))
 
 	right.add_child(UI.section("Account & data"))
@@ -1963,6 +2106,22 @@ func _net_connected() -> void:
 
 func _net_disconnected(reason: String) -> void:
 	_on_connected = Callable()
+	if _reconnecting and Time.get_ticks_msec() / 1000.0 < _rejoin_until:
+		# Still flaky: try again shortly (until the deadline).
+		get_tree().create_timer(2.0).timeout.connect(func() -> void:
+			if _reconnecting and not Net.is_online():
+				_try_rejoin())
+		return
+	if _reconnecting:  # gave up
+		_reconnecting = false
+		_last_state = {}
+		toast("Couldn't reconnect. You can rejoin from the menu for a few minutes.", true)
+		show_menu()
+		return
+	# Dropped out of an online game: get straight back in.
+	if not singleplayer and _last_state.size() > 0 and not Net.seat.is_empty():
+		_try_rejoin()
+		return
 	if reason != "":
 		toast(reason, true)
 	if table != null or _last_state.size() > 0 or singleplayer:
@@ -1993,6 +2152,41 @@ func _net_message(msg: Dictionary) -> void:
 				table.apply_state(msg)
 		"rooms":
 			_show_rooms(msg.get("rooms", []))
+		"seat":
+			if _reconnecting:
+				_reconnecting = false
+				toast("You're back in the game")
+		"rejoin_failed":
+			var was_lobby: bool = _last_state.get("phase", "") == "lobby"
+			var code: String = Net.seat.get("code", "")
+			_reconnecting = false
+			Net.clear_seat()
+			if was_lobby and code != "":
+				Net.send({"t": "join", "name": _name(), "code": code})
+			else:
+				_last_state = {}
+				toast("Couldn't rejoin: %s" % msg.get("msg", "the game has ended"), true)
+				show_menu()
+		"chat_history":
+			var items = msg.get("items")
+			_chat = items if items is Array else []
+			if _chat_box != null and is_instance_valid(_chat_box):
+				_chat_box.set_history(_chat)
+		"chat":
+			_chat.append(msg)
+			if _chat.size() > 60:
+				_chat.pop_front()
+			if _chat_box != null and is_instance_valid(_chat_box):
+				_chat_box.add(msg)
+			if table:
+				table.add_chat(msg)
+		"kicked":
+			Net.clear_seat()
+			_last_state = {}
+			Audio.play("error")
+			toast(msg.get("msg", "You were removed from the room."), true)
+			_after_left = show_multiplayer
+			Net.send({"t": "leave"})
 		"outdated":
 			_show_outdated(msg)
 		"emote":
@@ -2006,6 +2200,8 @@ func _net_message(msg: Dictionary) -> void:
 				toast(msg.msg, true)
 		"left":
 			_last_state = {}
+			_chat = []
+			Net.clear_seat()
 			if _after_left.is_valid():
 				var cb := _after_left
 				_after_left = Callable()

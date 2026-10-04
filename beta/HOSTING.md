@@ -1,5 +1,7 @@
 # Hosting the closed beta on this PC
 
+> **Hosting on a VPS instead?** See [`deploy/VPS.md`](../deploy/VPS.md). That's the recommended setup for testers, so your PC doesn't have to stay on.
+
 The beta server runs on your PC and testers connect to it over the internet.
 Connections from the internet are encrypted with TLS. Each release pins the
 server's self-signed certificate, so you don't need a domain.
@@ -45,7 +47,7 @@ Without a key it falls back to the local `beta\server-data\accounts.json`.
 
 **Notes:**
 - Players need a password of at least 8 characters, which is Appwrite's rule.
-- In Appwrite, players show up under **Auth** with the labels `player` and `beta`. Their internal email is `<username>@players.unoglass.app`. No mail is ever sent there.
+- In Appwrite, players show up under **Auth** with the labels `player` and `beta`. Their internal email is `<username>@players.glintgame.app`. No mail is ever sent there.
 - **Blocking** a user in the Appwrite console stops them from signing in.
 - Feedback can be read in **Databases → uno → feedback**, or with `beta\feedback.cmd`.
 

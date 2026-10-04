@@ -9,8 +9,17 @@ signal message(msg: Dictionary)
 
 const DEFAULT_PORT := 7777
 const LOCAL_PORT := 7778  # private singleplayer server
+const PING_EVERY := 5.0  # keepalive, so a dead connection is noticed quickly
+const PING_TIMEOUT := 16.0
+const SEAT_PATH := "user://rejoin.cfg"
+const SEAT_GRACE := 170  # seconds; the server keeps a dropped player's seat for 3 minutes
 
 var my_id := ""
+## The online seat we hold, so we can get back in after a dropped
+## connection or a crash: {code, token, id, host, port, at}.
+var seat := {}
+var _ping_t := 0.0
+var _heard := 0.0
 var server_version := ""
 var _link := LineLink.new()
 var _host := ""
@@ -20,7 +29,13 @@ var _server_pids := {}  # port -> pid
 
 func _ready() -> void:
 	add_child(_link)
-	_link.connected.connect(func() -> void: connected.emit())
+	var cf := ConfigFile.new()
+	if cf.load(SEAT_PATH) == OK:
+		seat = cf.get_value("seat", "seat", {})
+	_link.connected.connect(func() -> void:
+		_heard = _now()
+		_ping_t = 0.0
+		connected.emit())
 	_link.disconnected.connect(func(reason: String) -> void:
 		my_id = ""
 		disconnected.emit(reason))
@@ -74,11 +89,61 @@ static func _intify(v: Variant) -> Variant:
 	return v
 
 
+func _now() -> float:
+	return Time.get_ticks_msec() / 1000.0
+
+
+func _process(delta: float) -> void:
+	if not _link.is_online():
+		return
+	_ping_t += delta
+	if _ping_t >= PING_EVERY:
+		_ping_t = 0.0
+		send({"t": "ping"})
+	if _now() - _heard > PING_TIMEOUT:
+		_link.drop("Lost connection to the server")
+
+
 func _on_message(msg: Dictionary) -> void:
-	if msg.get("t") == "welcome":
-		my_id = msg.get("id", "")
-		server_version = msg.get("version", "")
+	_heard = _now()
+	match msg.get("t"):
+		"welcome":
+			my_id = msg.get("id", "")
+			server_version = msg.get("version", "")
+		"pong":
+			return
+		"seat":
+			my_id = msg.get("id", my_id)
+			if _port != LOCAL_PORT:  # singleplayer servers don't outlive the game
+				seat = {"code": msg.get("code", ""), "token": msg.get("token", ""), "id": my_id,
+					"host": _host, "port": _port, "at": Time.get_unix_time_from_system()}
+				_save_seat()
+		"state":
+			# Keep the seat's timestamp fresh while playing (cheaply).
+			if not seat.is_empty() and Time.get_unix_time_from_system() - float(seat.get("at", 0)) > 20:
+				seat.at = Time.get_unix_time_from_system()
+				_save_seat()
 	message.emit(msg)
+
+
+# ---- rejoining ----
+
+## A seat we dropped out of recently enough that the server may still hold it.
+func has_rejoinable_seat() -> bool:
+	return not seat.is_empty() and Time.get_unix_time_from_system() - float(seat.get("at", 0)) < SEAT_GRACE
+
+
+func clear_seat() -> void:
+	if seat.is_empty():
+		return
+	seat = {}
+	_save_seat()
+
+
+func _save_seat() -> void:
+	var cf := ConfigFile.new()
+	cf.set_value("seat", "seat", seat)
+	cf.save(SEAT_PATH)
 
 
 # ---- local server process ----

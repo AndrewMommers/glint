@@ -61,11 +61,15 @@ func update(p: Dictionary, active: bool, color: Color, time_frac: float, is_me: 
 	var tags := ""
 	if p.get("host", false):
 		tags += "  ♛"
+	var away: bool = p.get("away", false)
+	modulate.a = 0.6 if away else 1.0
 	name_label.text = ("You" if is_me else nm) + tags
 	var cards: int = p.get("cards", 0)
 	var sub := "%d card%s · %d pts" % [cards, "" if cards == 1 else "s", p.get("score", 0)]
 	if p.get("bot", false):
 		sub = "%s bot · " % str(p.get("difficulty", "")).capitalize() + sub
+	elif away:
+		sub = "Reconnecting… a bot plays · " + sub
 	sub_label.text = sub
 	mini.count = cards
 	dots.visible = active and not is_me

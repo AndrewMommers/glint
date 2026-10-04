@@ -34,12 +34,25 @@ type Client struct {
 	once sync.Once
 	room *Room // only touched by the client's read goroutine
 
+	ip           string
+	pings        bool   // client sends keepalive pings, so silence means it's gone
 	user         string // account key when signed in (read goroutine only)
 	token        string
 	fails        int
 	feedbackSent int
 	roomCode_    atomic.Value // string; read by the friends list
 }
+
+// banKey is what a kick bans: the account, or the address for guests.
+func (c *Client) banKey() string {
+	if c.user != "" {
+		return "u:" + c.user
+	}
+	return "ip:" + c.ip
+}
+
+// pingTimeout is how long a pinging client may stay silent (it pings every 5s).
+const pingTimeout = 25 * time.Second
 
 func (c *Client) roomCode() string {
 	s, _ := c.roomCode_.Load().(string)
@@ -125,14 +138,20 @@ func (h *Hub) serve(conn net.Conn) {
 		h.clients.Add(-1)
 		h.lastAct.Store(time.Now().Unix())
 	}()
-	c := &Client{id: h.newID("p"), name: "Player", prof: profile{Back: "classic", Level: 1}, conn: conn, out: make(chan []byte, 64), done: make(chan struct{})}
+	c := &Client{id: h.newID("p"), ip: ip, name: "Player", prof: profile{Back: "classic", Level: 1}, conn: conn, out: make(chan []byte, 64), done: make(chan struct{})}
 	go c.writeLoop()
 	defer c.shutdown()
 	c.send(map[string]any{"t": "welcome", "id": c.id, "version": Version})
 
 	sc := bufio.NewScanner(conn)
 	sc.Buffer(make([]byte, 4096), 64*1024)
-	for sc.Scan() {
+	for {
+		if c.pings {
+			conn.SetReadDeadline(time.Now().Add(pingTimeout))
+		}
+		if !sc.Scan() {
+			break
+		}
 		var m inMsg
 		if err := json.Unmarshal(sc.Bytes(), &m); err != nil {
 			c.send(map[string]any{"t": "error", "msg": "bad message"})
@@ -142,7 +161,7 @@ func (h *Hub) serve(conn net.Conn) {
 	}
 	if c.room != nil {
 		r := c.room
-		r.post(func() { r.leave(c) })
+		r.post(func() { r.leave(c, true) })
 	}
 	if c.user != "" && h.accounts != nil {
 		h.accounts.SetOnline(c.user, c, false)
@@ -278,7 +297,7 @@ func (h *Hub) dispatch(c *Client, m inMsg) {
 	leaveRoom := func() {
 		if c.room != nil {
 			r := c.room
-			r.do(func() { r.leave(c) })
+			r.do(func() { r.leave(c, false) })
 			c.setRoom(nil)
 		}
 	}
@@ -299,6 +318,7 @@ func (h *Hub) dispatch(c *Client, m inMsg) {
 	}
 	switch m.T {
 	case "ping":
+		c.pings = true
 		c.send(map[string]any{"t": "pong"})
 	case "hello":
 		if c.user == "" {
@@ -349,7 +369,7 @@ func (h *Hub) dispatch(c *Client, m inMsg) {
 			fail("no room with code " + code)
 			return
 		}
-		if c.room == r {
+		if c.room == r && c.roomCode() != "" { // already in it (and not kicked)
 			return
 		}
 		leaveRoom()
@@ -368,6 +388,56 @@ func (h *Hub) dispatch(c *Client, m inMsg) {
 		}
 		c.setRoom(r)
 		log.Printf("%s (%s) joined room %s", c.name, c.id, r.code)
+	case "quick":
+		if m.Name != "" && c.user == "" {
+			c.name = cleanName(m.Name)
+		}
+		leaveRoom()
+		// Try the fullest open Quick Match table; another player may grab
+		// the last seat first, so fall through to the next one.
+		for _, r := range h.quickRooms() {
+			var err error
+			if r.do(func() {
+				if err = r.join(c); err == nil {
+					r.changed(nil, false)
+				}
+			}) && err == nil {
+				c.setRoom(r)
+				log.Printf("%s (%s) quick-joined room %s", c.name, c.id, r.code)
+				return
+			}
+		}
+		r := h.createRoom()
+		r.do(func() {
+			r.quick = true
+			r.settings.MaxPlayers = quickSeats
+			r.settings.TurnTime = 20
+			r.settings.TargetScore = 0
+			r.join(c)
+			r.changed(nil, false)
+		})
+		c.setRoom(r)
+		log.Printf("%s (%s) opened quick room %s", c.name, c.id, r.code)
+	case "rejoin":
+		code := strings.ToUpper(strings.TrimSpace(m.Code))
+		r := h.get(code)
+		if r == nil {
+			c.send(map[string]any{"t": "rejoin_failed", "msg": "That game has ended"})
+			return
+		}
+		if c.room != nil && c.room != r {
+			leaveRoom()
+		}
+		var err error
+		if !r.do(func() { err = r.rejoin(c, m.Token) }) {
+			err = errors.New("that game has ended")
+		}
+		if err != nil {
+			c.send(map[string]any{"t": "rejoin_failed", "msg": err.Error()})
+			return
+		}
+		c.setRoom(r)
+		log.Printf("%s (%s) rejoined room %s", c.name, c.id, r.code)
 	case "leave":
 		leaveRoom()
 		c.send(map[string]any{"t": "left"})
