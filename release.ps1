@@ -64,7 +64,9 @@ Copy-Item (Join-Path $root "build\Glint.exe"), (Join-Path $root "build\Glint.pck
 $zip = Join-Path $dist "$name.zip"
 Remove-Item $zip -ErrorAction SilentlyContinue
 Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip -CompressionLevel Optimal
-$hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+$sha = [Security.Cryptography.SHA256]::Create()
+$fs = [IO.File]::OpenRead($zip)
+try { $hash = -join ($sha.ComputeHash($fs) | ForEach-Object { $_.ToString("x2") }) } finally { $fs.Dispose(); $sha.Dispose() }
 Set-Content (Join-Path $beta "VERSION") $Version -NoNewline
 
 # Windows installer (Inno Setup, per-user, no admin).
