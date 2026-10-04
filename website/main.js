@@ -1,20 +1,23 @@
 // Glint website: screenshot lightbox and reveal-on-scroll. No tracking, no cookies.
 (() => {
+  // Screenshot lightbox (game pages only).
   const lb = document.getElementById("lightbox");
-  const lbImg = lb.querySelector("img");
-  const close = () => { lb.hidden = true; lbImg.removeAttribute("src"); };
-  document.querySelectorAll(".shot").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      lbImg.src = btn.dataset.full;
-      lbImg.alt = btn.querySelector("img").alt;
-      lb.hidden = false;
-      lb.querySelector(".lb-close").focus();
+  if (lb) {
+    const lbImg = lb.querySelector("img");
+    const close = () => { lb.hidden = true; lbImg.removeAttribute("src"); };
+    document.querySelectorAll(".shot").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        lbImg.src = btn.dataset.full;
+        lbImg.alt = btn.querySelector("img").alt;
+        lb.hidden = false;
+        lb.querySelector(".lb-close").focus();
+      });
     });
-  });
-  lb.addEventListener("click", close);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !lb.hidden) close(); });
+    lb.addEventListener("click", close);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !lb.hidden) close(); });
+  }
 
-  const items = document.querySelectorAll(".feature, .shot, .steps li, .legend, .cta-box, .faq details");
+  const items = document.querySelectorAll(".feature, .game-tile, .shot, .steps li, .legend, .cta-box, .faq details");
   if (!("IntersectionObserver" in window)) return;
   const io = new IntersectionObserver((entries) => {
     entries.forEach((en) => {

@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Glint, the glassy color-matching card game</title>
-  <meta name="description" content="Glint is a fast, glassy color-matching card game. Play solo against bots, take on the 12-level campaign, or play online with Quick Match and public or private lobbies. Free to play in your browser.">
+  <title>Glint, card games in your browser</title>
+  <meta name="description" content="Glint is a growing library of free card games you play right in your browser: Glint Cards today, with Blackjack and Texas Hold'em on the way. One account, your friends, every game.">
   <meta name="theme-color" content="#0b0d22">
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="apple-touch-icon" href="assets/icon-256.png">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Glint, the glassy color-matching card game">
-  <meta property="og:description" content="Match colors, chain wilds, and call GLINT! Solo, campaign, Quick Match and online lobbies. Free to play in your browser.">
-  <meta property="og:image" content="assets/social-preview.png">
+  <meta property="og:title" content="Glint, card games in your browser">
+  <meta property="og:description" content="Free card games, polished like glass. Play solo or with friends, right in your browser.">
+  <meta property="og:image" content="https://glint.appwrite.network/assets/social-preview.png">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -24,12 +24,11 @@
       <img src="assets/wordmark.svg" alt="Glint" class="brand-word" width="88" height="36">
     </a>
     <nav aria-label="Main">
-      <a href="#features">Features</a>
-      <a href="#how">How to play</a>
-      <a href="#screens">Screenshots</a>
+      <a href="#games">Games</a>
+      <a href="#why">Why Glint</a>
       <a href="#faq">FAQ</a>
     </nav>
-    <a class="btn btn-primary btn-sm" href="play/">Play now</a>
+    <a class="btn btn-primary btn-sm" href="#games">Play</a>
   </header>
 
   <main>
@@ -37,124 +36,104 @@
     <section class="hero">
       <div class="hero-copy">
         <span class="pill">✨ Free to play · Right in your browser</span>
-        <h1><img src="assets/wordmark.svg" alt="Glint" class="hero-word" width="520" height="213"></h1>
-        <p class="lead">The glassy color-matching card game. Match colors and numbers, chain wild cards, stack penalties, and shout <strong class="glint-word">GLINT!</strong> when you're down to your last card.</p>
+        <h1 class="library-title">Card games,<br><span class="shine">polished like glass.</span></h1>
+        <p class="lead">Glint is a growing library of free card games. Play solo against bots or with friends online, all with one account and nothing to install.</p>
         <div class="cta">
-          <a class="btn btn-primary btn-lg" href="play/">
+          <a class="btn btn-primary btn-lg" href="#games">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>
-            Play now
+            Browse games
           </a>
-          <a class="btn btn-ghost btn-lg" href="#how">How to play</a>
+          <a class="btn btn-ghost btn-lg" href="play/glint-cards/">Play Glint Cards</a>
         </div>
-        <p class="small">Free to play. Nothing to install: it runs in your browser. Create a free account to play online.</p>
       </div>
       <div class="hero-art" aria-hidden="true">
-        <div class="fan">
-          <div class="card c-red"><i class="gem"></i><b>7</b></div>
-          <div class="card c-yellow"><i class="gem"></i><b>+2</b></div>
-          <div class="card c-green"><i class="gem"></i><b>3</b></div>
-          <div class="card c-wild"><i class="gem gem-wild"></i></div>
-          <div class="card c-blue"><i class="gem"></i><b>9</b><span class="spark"></span></div>
+        <div class="table-stack">
+          <div class="card c-blue tilt-a"><i class="gem"></i><b>7</b></div>
+          <div class="pcard red tilt-b"><span class="corner">A<br>♥</span><span class="pip">♥</span></div>
+          <div class="pcard tilt-c"><span class="corner">K<br>♠</span><span class="pip">♠</span></div>
+          <div class="chips"><i class="chip c1"></i><i class="chip c2"></i><i class="chip c3"></i></div>
         </div>
         <span class="sparkle s1"></span><span class="sparkle s2"></span><span class="sparkle s3"></span>
       </div>
     </section>
 
-    <!-- Features -->
-    <section id="features" class="section">
-      <h2>Everything you want from a card night</h2>
-      <p class="section-lead">Quick to learn, hard to put down, and polished like frosted glass.</p>
-      <div class="grid">
+    <!-- Games -->
+    <section id="games" class="section">
+      <h2>The library</h2>
+      <p class="section-lead">Every game is free, plays in your browser and shares your account and friends.</p>
+      <div class="games">
+        <a class="game-tile glass" href="games/glint-cards/">
+          <div class="tile-art art-cards" aria-hidden="true">
+            <div class="mini-fan">
+              <div class="card c-red"><i class="gem"></i><b>7</b></div>
+              <div class="card c-yellow"><i class="gem"></i><b>+2</b></div>
+              <div class="card c-wild"><i class="gem gem-wild"></i></div>
+              <div class="card c-blue"><i class="gem"></i><b>9</b></div>
+            </div>
+          </div>
+          <div class="tile-body">
+            <div class="tile-head"><h3>Glint Cards</h3><span class="tag tag-live">Play now</span></div>
+            <p>Match colors and numbers, chain wilds and call GLINT! on your last card. Campaign, house rules, Quick Match and lobbies.</p>
+            <p class="tile-meta">2–8 players · Solo &amp; online</p>
+          </div>
+        </a>
+        <div class="game-tile glass soon">
+          <div class="tile-art art-blackjack" aria-hidden="true">
+            <div class="pcard red tilt-l"><span class="corner">A<br>♦</span><span class="pip">♦</span></div>
+            <div class="pcard tilt-r"><span class="corner">K<br>♣</span><span class="pip">♣</span></div>
+            <div class="chips"><i class="chip c1"></i><i class="chip c2"></i></div>
+          </div>
+          <div class="tile-body">
+            <div class="tile-head"><h3>Blackjack</h3><span class="tag">Coming soon</span></div>
+            <p>Beat the dealer to 21. Hit, stand, double down and split, with free chips and a daily bonus.</p>
+            <p class="tile-meta">1–5 players · Solo &amp; online</p>
+          </div>
+        </div>
+        <div class="game-tile glass soon">
+          <div class="tile-art art-holdem" aria-hidden="true">
+            <div class="board">
+              <div class="pcard small"><span class="corner">10<br>♠</span></div>
+              <div class="pcard small red"><span class="corner">J<br>♥</span></div>
+              <div class="pcard small"><span class="corner">Q<br>♣</span></div>
+              <div class="pcard small red"><span class="corner">K<br>♦</span></div>
+              <div class="pcard small"><span class="corner">A<br>♠</span></div>
+            </div>
+            <div class="chips"><i class="chip c3"></i><i class="chip c1"></i><i class="chip c2"></i></div>
+          </div>
+          <div class="tile-body">
+            <div class="tile-head"><h3>Texas Hold'em</h3><span class="tag">Coming soon</span></div>
+            <p>Two hole cards, five on the board, and the best hand wins the pot. Play bots or friends at your own table.</p>
+            <p class="tile-meta">2–8 players · Solo &amp; online</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why -->
+    <section id="why" class="section">
+      <h2>One account for every game</h2>
+      <p class="section-lead">Sign up once and everything comes with you, from game to game and computer to computer.</p>
+      <div class="grid grid-4">
         <article class="feature glass">
-          <div class="ico">🤖</div>
-          <h3>Solo vs bots</h3>
-          <p>Up to seven opponents with easy, normal and hard AI. Hard bots stack, hold wilds and catch a missed GLINT call.</p>
+          <div class="ico">🎁</div>
+          <h3>Free to play</h3>
+          <p>Every game is free. Chip games use free play chips with a daily bonus. No real money, ever.</p>
         </article>
         <article class="feature glass">
           <div class="ico">🌐</div>
-          <h3>Quick Match &amp; lobbies</h3>
-          <p>Jump into a Quick Match, or create a public or private lobby and share its 4-letter code. Chat, invite friends, and if your connection drops, you rejoin right where you were.</p>
+          <h3>Nothing to install</h3>
+          <p>Press Play and the game opens in your browser, always on the latest version.</p>
         </article>
         <article class="feature glass">
-          <div class="ico">🗺️</div>
-          <h3>12-level campaign</h3>
-          <p>From "First Deal" to the "Grand Finale" against seven sharks. Earn up to three stars per level.</p>
-        </article>
-        <article class="feature glass">
-          <div class="ico">🃏</div>
-          <h3>House rules</h3>
-          <p>Stacking, jump-in, Seven-O, draw-to-match and force play. Save presets and share them as codes.</p>
+          <div class="ico">👥</div>
+          <h3>Play together</h3>
+          <p>Quick Match, public or private lobbies with a 4-letter code, chat and friend invites.</p>
         </article>
         <article class="feature glass">
           <div class="ico">⭐</div>
-          <h3>Progression</h3>
-          <p>Earn XP, climb 50 levels and titles, and unlock card backs, table themes and avatar frames.</p>
+          <h3>Your progress</h3>
+          <p>Levels, unlocks, stats and friends are saved to your account and follow you to any computer.</p>
         </article>
-        <article class="feature glass">
-          <div class="ico">🎧</div>
-          <h3>Made to feel good</h3>
-          <p>Glass UI, smooth animations, original music and sound. It runs in your browser and is always the latest version.</p>
-        </article>
-      </div>
-    </section>
-
-    <!-- Screenshots -->
-    <section id="screens" class="section">
-      <h2>See it in motion</h2>
-      <p class="section-lead">Click any screenshot to enlarge it.</p>
-      <div class="shots">
-        <button class="shot shot-wide" data-full="assets/shots/table.jpg" aria-label="Enlarge: a game in progress">
-          <img src="assets/shots/table.jpg" alt="A game in progress with four players, the gem cards and a SKIP banner" loading="lazy" width="1600" height="900">
-          <span>A round in full swing</span>
-        </button>
-        <button class="shot" data-full="assets/shots/lobby.jpg" aria-label="Enlarge: lobby">
-          <img src="assets/shots/lobby.jpg" alt="A lobby with players, house rules and chat" loading="lazy" width="1600" height="900">
-          <span>Lobbies &amp; chat</span>
-        </button>
-        <button class="shot" data-full="assets/shots/multiplayer.jpg" aria-label="Enlarge: multiplayer">
-          <img src="assets/shots/multiplayer.jpg" alt="The multiplayer screen with Quick Match, create a lobby and join with a code" loading="lazy" width="1600" height="900">
-          <span>Quick Match &amp; lobbies</span>
-        </button>
-        <button class="shot" data-full="assets/shots/results.jpg" aria-label="Enlarge: end of round">
-          <img src="assets/shots/results.jpg" alt="End of round screen with stars, XP and a level up" loading="lazy" width="1600" height="900">
-          <span>Stars, XP &amp; level ups</span>
-        </button>
-        <button class="shot" data-full="assets/shots/menu.jpg" aria-label="Enlarge: main menu">
-          <img src="assets/shots/menu.jpg" alt="The main menu with your level, title and stats" loading="lazy" width="1600" height="900">
-          <span>Levels &amp; titles</span>
-        </button>
-      </div>
-    </section>
-
-    <!-- How to play -->
-    <section id="how" class="section">
-      <h2>How to play</h2>
-      <p class="section-lead">If you've ever played a shedding card game, you already know most of it.</p>
-      <ol class="steps">
-        <li class="glass"><span class="num">1</span><div><h3>Match the pile</h3><p>Play a card that matches the top card by <b>color</b>, <b>number</b> or <b>symbol</b>, or play a wild.</p></div></li>
-        <li class="glass"><span class="num">2</span><div><h3>Can't play? Draw</h3><p>Draw a card. If it fits, you can play it straight away.</p></div></li>
-        <li class="glass"><span class="num">3</span><div><h3>Call <span class="glint-word">GLINT!</span></h3><p>About to play your second-to-last card? Press <kbd>G</kbd>. Forget, and anyone can catch you for +2.</p></div></li>
-        <li class="glass"><span class="num">4</span><div><h3>Empty your hand</h3><p>First to play their last card wins the round and scores the cards left in everyone else's hands.</p></div></li>
-      </ol>
-
-      <div class="cards-legend">
-        <div class="legend"><div class="card mini c-red"><i class="gem"></i><b>5</b></div><p><b>Number</b><br>Match color or number</p></div>
-        <div class="legend"><div class="card mini c-blue"><i class="gem"></i><b class="sym">⊘</b></div><p><b>Skip</b><br>Next player misses a turn</p></div>
-        <div class="legend"><div class="card mini c-green"><i class="gem"></i><b class="sym">⇄</b></div><p><b>Reverse</b><br>Flip the direction</p></div>
-        <div class="legend"><div class="card mini c-yellow"><i class="gem"></i><b>+2</b></div><p><b>Draw Two</b><br>Next player draws 2</p></div>
-        <div class="legend"><div class="card mini c-wild"><i class="gem gem-wild"></i></div><p><b>Wild</b><br>Pick the next color</p></div>
-        <div class="legend"><div class="card mini c-wild"><i class="gem gem-wild"></i><b class="w4">+4</b></div><p><b>Wild +4</b><br>Pick a color, next draws 4</p></div>
-      </div>
-    </section>
-
-    <!-- Call to action -->
-    <section class="section">
-      <div class="cta-box glass">
-        <div>
-          <h2>Ready to play?</h2>
-          <p>Press Play and Glint opens right here in your browser. Play solo or the whole campaign right away, or create a free account to play online with friends.</p>
-        </div>
-        <a class="btn btn-primary btn-lg" href="play/">Play now</a>
       </div>
     </section>
 
@@ -162,26 +141,20 @@
     <section id="faq" class="section">
       <h2>FAQ</h2>
       <div class="faq">
-        <details class="glass" open><summary>Is Glint free?</summary><p>Yes. Glint is free to play.</p></details>
-        <details class="glass"><summary>What do I need to play?</summary><p>A computer with an up-to-date browser (Chrome, Edge, Firefox or Safari) and an internet connection. There's nothing to download or install. Phones and tablets aren't supported yet.</p></details>
-        <details class="glass"><summary>Do I need an account?</summary><p>Not for solo games or the campaign. A free account lets you play online, add friends and keep your progress on any computer.</p></details>
-        <details class="glass"><summary>What data do you collect?</summary><p>For online play: your username, game stats and progress. If you send feedback from the game, that's stored too, along with the game log if you choose to attach it. Nothing is sold or shared.</p></details>
-        <details class="glass"><summary>How do I update?</summary><p>You don't. Every time you press Play you get the latest version.</p></details>
-        <details class="glass"><summary>How do I report a bug?</summary><p>Use <b>Feedback</b> in the main menu. Your game version and log are attached automatically, which helps a lot.</p></details>
+        <details class="glass" open><summary>Is Glint free?</summary><p>Yes. Every game in the library is free to play.</p></details>
+        <details class="glass"><summary>Do the chip games use real money?</summary><p>No. Blackjack and Texas Hold'em use free play chips that have no cash value and can't be bought or cashed out.</p></details>
+        <details class="glass"><summary>What do I need to play?</summary><p>A computer with an up-to-date browser (Chrome, Edge, Firefox or Safari) and an internet connection. Phones and tablets aren't supported yet.</p></details>
+        <details class="glass"><summary>Do I need an account?</summary><p>Not to play solo. A free account lets you play online, add friends and keep your progress on any computer.</p></details>
+        <details class="glass"><summary>What data do you collect?</summary><p>For online play: your username, game stats and progress. If you send feedback from a game, that's stored too, along with the game log if you choose to attach it. Nothing is sold or shared.</p></details>
       </div>
     </section>
   </main>
 
   <footer class="footer">
     <div class="foot-brand"><img src="assets/emblem.svg" alt="" width="28" height="28"> <span>Glint</span></div>
-    <p>© 2026 Andrew Mommers. Glint is an independent game and is not affiliated with or endorsed by any other card game brand.</p>
-    <p><a href="play/">Play</a> · <a href="#faq">FAQ</a> · <a href="#top">Back to top ↑</a></p>
+    <p>© 2026 Andrew Mommers. Glint games are independent and not affiliated with or endorsed by any other card game brand.</p>
+    <p><a href="#games">Games</a> · <a href="games/glint-cards/">Glint Cards</a> · <a href="#faq">FAQ</a> · <a href="#top">Back to top ↑</a></p>
   </footer>
-
-  <div class="lightbox" id="lightbox" hidden>
-    <button class="lb-close" aria-label="Close">✕</button>
-    <img alt="">
-  </div>
   <script src="main.js" defer></script>
 </body>
 </html>

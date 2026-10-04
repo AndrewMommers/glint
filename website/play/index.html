@@ -3,90 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Play Glint</title>
-  <meta name="description" content="Play Glint, the glassy color-matching card game, right in your browser.">
-  <meta name="theme-color" content="#0b0d22">
-  <link rel="icon" type="image/png" href="../assets/favicon.png">
-  <link rel="stylesheet" href="../styles.css">
-  <style>
-    html, body { height: 100%; }
-    body.play { display: flex; flex-direction: column; overflow: hidden; }
-    .play-bar { position: relative; z-index: 2; margin: 10px 12px 0; padding: 6px 10px 6px 14px; display: flex; align-items: center; gap: 12px; border-radius: 16px; }
-    .play-bar .brand img.brand-word { height: 26px; width: auto; }
-    .play-bar .brand img:first-child { width: 28px; height: 28px; }
-    .play-bar .spacer { flex: 1; }
-    .play-status { color: var(--muted); font-size: 0.9rem; }
-    /* Full width under the bar (the site-wide main max-width does not apply here). */
-    .play-stage { position: relative; flex: 1; max-width: none; padding: 0; margin: 10px 12px 12px; border-radius: 18px; overflow: hidden; background: #0b0d22; border: 1px solid var(--rim); }
-    .play-stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; display: block; background: #0b0d22; }
-    .play-note { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; z-index: 1; }
-    .play-note[hidden] { display: none; }
-    .play-note .glass { max-width: 460px; padding: 28px; text-align: center; }
-    .play-note h2 { margin: 0 0 0.4em; }
-    .play-note p { color: var(--muted); margin: 0 0 1.2em; }
-    @media (max-width: 640px) { .play-bar .brand-word, .play-status { display: none; } }
-  </style>
+  <title>Play Glint Cards</title>
+  <!-- Older links (and older game copies) land here. -->
+  <meta http-equiv="refresh" content="0; url=glint-cards/">
+  <link rel="canonical" href="glint-cards/">
+  <script>location.replace("glint-cards/" + location.hash);</script>
 </head>
-<body class="play">
-  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-
-  <header class="play-bar glass">
-    <a class="brand" href="../" aria-label="Glint home">
-      <img src="../assets/emblem.svg" alt="" width="28" height="28">
-      <img src="../assets/wordmark.svg" alt="Glint" class="brand-word" width="64" height="26">
-    </a>
-    <span class="play-status" id="status">Loading the game…</span>
-    <span class="spacer"></span>
-    <button class="btn btn-ghost btn-sm" id="fullscreen" type="button">Full screen</button>
-    <a class="btn btn-ghost btn-sm" href="../">Back to site</a>
-  </header>
-
-  <main class="play-stage" id="stage">
-    <div class="play-note" id="small-screen" hidden>
-      <div class="glass">
-        <h2>Best on a computer</h2>
-        <p>Glint is made for a mouse and a bigger screen. Phone and tablet support is coming later.</p>
-        <button class="btn btn-primary" id="play-anyway" type="button">Play anyway</button>
-      </div>
-    </div>
-  </main>
-
-  <script>
-  (() => {
-    // The game is served from the Glint server; this page is the only way in.
-    const GAME_URL = "https://149-28-186-229.sslip.io/";
-    const stage = document.getElementById("stage");
-    const status = document.getElementById("status");
-    let frame = null;
-
-    function load() {
-      document.getElementById("small-screen").hidden = true;
-      frame = document.createElement("iframe");
-      frame.src = GAME_URL;
-      frame.title = "Glint";
-      frame.allow = "autoplay; fullscreen; gamepad; clipboard-write";
-      frame.addEventListener("load", () => {
-        status.textContent = "Tip: click the game first so it hears your keyboard.";
-        frame.focus();
-      });
-      stage.appendChild(frame);
-      stage.addEventListener("pointerdown", () => frame.focus());
-    }
-
-    document.getElementById("fullscreen").addEventListener("click", () => {
-      const el = frame || stage;
-      (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el);
-    });
-
-    const small = Math.min(window.innerWidth, window.innerHeight) < 500 || matchMedia("(pointer: coarse)").matches;
-    if (small) {
-      document.getElementById("small-screen").hidden = false;
-      status.textContent = "";
-      document.getElementById("play-anyway").addEventListener("click", load);
-    } else {
-      load();
-    }
-  })();
-  </script>
+<body style="background:#0b0d22;color:#fff;font-family:system-ui,sans-serif">
+  <p><a href="glint-cards/" style="color:#b9a8ff">Play Glint Cards</a></p>
 </body>
 </html>
