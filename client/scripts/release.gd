@@ -39,6 +39,11 @@ static func download_url() -> String:
 	return _c().get_value("release", "download_url", "https://glint.appwrite.network/download/")
 
 
+## The update manifest the game checks at startup (written by tools/publish_download.sh).
+static func update_url() -> String:
+	return _c().get_value("release", "update_url", "https://glint.appwrite.network/release.json")
+
+
 static func channel() -> String:
 	return _c().get_value("release", "channel", "dev")
 

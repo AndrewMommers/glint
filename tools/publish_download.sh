@@ -5,7 +5,9 @@
 #   bash tools/publish_download.sh <version> <Glint-Setup-x.exe> [<Glint-x-windows.zip>]
 #
 # Files keep stable ids (setup-latest, zip-latest), so the download links never
-# change; each upload replaces the previous build. Needs an Appwrite API key with
+# change; each upload replaces the previous build. It also uploads the in-game
+# update files from build/ (Glint.pck, glint-server.exe) and lists them with
+# their SHA-256 in release.json, which the game checks at startup. Needs an Appwrite API key with
 # buckets.read, buckets.write, files.read and files.write, from
 # $APPWRITE_RELEASE_KEY or beta/server-data/appwrite-release.key (git-ignored).
 set -euo pipefail
@@ -35,14 +37,16 @@ api() { # api METHOD PATH [curl args...] -> body on stdout, fails on HTTP >= 400
   printf '%s' "$out"
 }
 
-# 1. Public, read-only bucket (created once). 50 MB is the free plan's per-file cap.
-if ! api GET "/storage/buckets/$BUCKET" >/dev/null 2>&1; then
-  echo "creating bucket '$BUCKET'"
-  api POST /storage/buckets -H 'Content-Type: application/json' -d "{
-    \"bucketId\": \"$BUCKET\", \"name\": \"Game downloads\",
+# 1. Public, read-only bucket. 50 MB is the free plan's per-file cap.
+bucket_cfg="\"name\": \"Game downloads\",
     \"permissions\": [\"read(\\\"any\\\")\"], \"fileSecurity\": false,
-    \"maximumFileSize\": 50000000, \"allowedFileExtensions\": [\"exe\", \"zip\"],
-    \"compression\": \"none\", \"encryption\": false, \"antivirus\": true }" >/dev/null
+    \"maximumFileSize\": 50000000, \"allowedFileExtensions\": [\"exe\", \"zip\", \"pck\"],
+    \"compression\": \"none\", \"encryption\": false, \"antivirus\": true"
+if api GET "/storage/buckets/$BUCKET" >/dev/null 2>&1; then
+  api PUT "/storage/buckets/$BUCKET" -H 'Content-Type: application/json' -d "{ $bucket_cfg }" >/dev/null
+else
+  echo "creating bucket '$BUCKET'"
+  api POST /storage/buckets -H 'Content-Type: application/json' -d "{ \"bucketId\": \"$BUCKET\", $bucket_cfg }" >/dev/null
 fi
 
 # 2. Replace a file under a stable id. Appwrite takes uploads in 5 MB chunks.
@@ -81,12 +85,28 @@ if [ -n "$ZIP" ]; then
   \"zip\": { \"name\": \"$(basename "$ZIP")\", \"url\": \"$(link zip-latest)\", \"bytes\": $(bytes "$ZIP"), \"sha256\": \"$(sha "$ZIP")\" }"
 fi
 
+# In-game update: just the files that change between releases. Glint.exe is
+# the Godot engine (too big for one upload, and it only changes on engine
+# upgrades); the game compares its own exe against exe_sha256 and falls back
+# to the installer when they differ.
+BUILD="${BUILD:-$root/build}"
+upload pck-latest "$BUILD/Glint.pck"
+upload server-latest "$BUILD/glint-server.exe"
+patch_json=",
+  \"patch\": {
+    \"exe_sha256\": \"$(sha "$BUILD/Glint.exe")\",
+    \"files\": [
+      { \"name\": \"Glint.pck\", \"url\": \"$(link pck-latest)\", \"bytes\": $(bytes "$BUILD/Glint.pck"), \"sha256\": \"$(sha "$BUILD/Glint.pck")\" },
+      { \"name\": \"glint-server.exe\", \"url\": \"$(link server-latest)\", \"bytes\": $(bytes "$BUILD/glint-server.exe"), \"sha256\": \"$(sha "$BUILD/glint-server.exe")\" }
+    ]
+  }"
+
 # 3. Tell the website about it (deployed by the website workflow once pushed).
 cat > "$root/website/release.json" <<EOF
 {
   "version": "$VERSION",
   "date": "$(date -u +%Y-%m-%d)",
-  "setup": { "name": "$(basename "$SETUP")", "url": "$(link setup-latest)", "bytes": $(bytes "$SETUP"), "sha256": "$(sha "$SETUP")" }$zip_json
+  "setup": { "name": "$(basename "$SETUP")", "url": "$(link setup-latest)", "bytes": $(bytes "$SETUP"), "sha256": "$(sha "$SETUP")" }$zip_json$patch_json
 }
 EOF
 echo "wrote website/release.json for $VERSION"

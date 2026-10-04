@@ -30,6 +30,7 @@ var _chat: Array = []  # this room's chat, newest last
 var _chat_box: ChatBox
 var _chat_draft := ""
 var _countdown: Label  # Quick Match "Starting in…"
+var updater := Updater.new()
 var _quick_at := 0.0
 
 # Settings edited before a room exists (quick play / create room).
@@ -86,6 +87,9 @@ func _ready() -> void:
 	Net.message.connect(_net_message)
 	show_menu()
 	_debug_args()
+	add_child(updater)
+	# Look for an update once the boot screen is gone.
+	get_tree().create_timer(3.0).timeout.connect(func() -> void: _check_updates(false))
 	if Net.has_rejoinable_seat():
 		get_tree().create_timer(2.5).timeout.connect(func() -> void:
 			if Net.has_rejoinable_seat() and not Net.is_online():
@@ -156,6 +160,8 @@ func _debug_args() -> void:
 			var fb_text := a.get_slice("=", 1)
 			get_tree().create_timer(2.0).timeout.connect(func() -> void:
 				Online.send_feedback("bug", fb_text, _feedback_info(), _log_tail()))
+		elif a == "--auto-update":
+			set_meta("auto_update", true)  # press "Update now" by itself (testing)
 		elif a.begins_with("--connect="):
 			server_addr = a.get_slice("=", 1)
 		elif a.begins_with("--mp="):
@@ -1703,6 +1709,7 @@ func _options_body() -> HBoxContainer:
 		if table == null:
 			show_options()))
 	row.add_child(UI.button("Feedback…", _feedback_dialog))
+	row.add_child(UI.button("Check for updates", func() -> void: _check_updates(true)))
 	var reset := UI.button("Reset progress…", _confirm_reset_progress)
 	UI.style_button(reset, Color(UI.DANGER, 0.7))
 	row.add_child(reset)
@@ -2013,19 +2020,112 @@ func toast_action(text: String, action: String, cb: Callable) -> void:
 # ---------------------------------------------------------------- beta
 
 func _show_outdated(msg: Dictionary) -> void:
-	var body := UI.vbox(14)
-	var l := UI.label("You have v%s, the server needs v%s or newer. Download the latest beta to keep playing online — your progress is safe." % [Release.version(), msg.get("min", "?")], 15, 500, UI.MUTED)
+	# The server wants a newer build: offer the in-game update if there is one.
+	_check_updates(true, func() -> void:
+		var body := UI.vbox(14)
+		var l := UI.label("You have v%s, the server needs v%s or newer. Download the latest beta to keep playing online. Your progress is safe." % [Release.version(), msg.get("min", "?")], 15, 500, UI.MUTED)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(440, 0)
+		body.add_child(l)
+		var row := UI.hbox(10)
+		row.add_child(UI.spacer(0, 0, true))
+		row.add_child(UI.button("Later", _close_dialog, false, 100))
+		row.add_child(UI.button("Download update", func() -> void:
+			OS.shell_open(Release.download_url())
+			_close_dialog(), true, 180))
+		body.add_child(row)
+		_dialog("Update required", body))
+
+
+# ---------------------------------------------------------------- updates
+
+## Asks the website for a newer version. Shows the update dialog if there is
+## one; otherwise calls none_found (manual checks say "up to date").
+func _check_updates(manual: bool, none_found: Callable = Callable()) -> void:
+	if updater.busy:
+		return
+	updater.checked.connect(func(info: Dictionary) -> void:
+		if not info.is_empty():
+			_update_dialog(info)
+		elif none_found.is_valid():
+			none_found.call()
+		elif manual:
+			toast("You're on the latest version (v%s)" % Release.version() if Release.is_release() else "Updates are only checked in release builds"),
+		CONNECT_ONE_SHOT)
+	updater.check()
+
+
+func _update_dialog(info: Dictionary) -> void:
+	var patch: bool = info.mode == "patch"
+	var mb := maxf(0.1, float(info.bytes) / 1048576.0)
+	var body := UI.vbox(16)
+	var text := ("Glint v%s is out (you have v%s). The update is %.1f MB and installs in a few seconds. Your progress and settings are kept." % [info.version, Release.version(), mb]) if patch \
+		else ("Glint v%s is out (you have v%s). This one needs the full installer (%d MB). Your progress and settings are kept." % [info.version, Release.version(), roundi(mb)])
+	var l := UI.label(text, 15, 500, UI.MUTED)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(440, 0)
+	l.custom_minimum_size = Vector2(460, 0)
 	body.add_child(l)
+	var bar := XPBar.new()
+	bar.custom_minimum_size = Vector2(0, 14)
+	bar.visible = false
+	body.add_child(bar)
+	var status := UI.label("", 14, 600, UI.MUTED)
+	status.visible = false
+	body.add_child(status)
 	var row := UI.hbox(10)
 	row.add_child(UI.spacer(0, 0, true))
-	row.add_child(UI.button("Later", _close_dialog, false, 100))
-	row.add_child(UI.button("Download update", func() -> void:
-		OS.shell_open(Release.download_url())
-		_close_dialog(), true, 180))
+	var later := UI.button("Later", _close_dialog, false, 110)
+	row.add_child(later)
+	var go := UI.button("Update now" if patch else "Download", Callable(), true, 180)
+	row.add_child(go)
 	body.add_child(row)
-	_dialog("Update required", body)
+	var failed := [false]  # set when a download fails; "Try again" then re-checks
+	var on_progress := func(done: int, total: int) -> void:
+		if is_instance_valid(bar):
+			bar.value = float(done) / maxf(1.0, total)
+			status.text = "Downloading…  %.1f / %.1f MB" % [done / 1048576.0, total / 1048576.0]
+	var on_done := func() -> void:
+		if is_instance_valid(status):
+			bar.value = 1.0
+			status.text = "Restarting Glint…"
+		await get_tree().create_timer(0.6).timeout
+		updater.apply_and_restart()
+	var on_fail := func(msg: String) -> void:
+		failed[0] = true
+		if is_instance_valid(status):
+			status.text = msg
+			status.add_theme_color_override("font_color", UI.DANGER)
+			go.text = "Try again"
+			go.disabled = false
+			later.disabled = false
+	var unhook := func() -> void:
+		for pair in [[updater.progress, on_progress], [updater.downloaded, on_done], [updater.failed, on_fail]]:
+			if pair[0].is_connected(pair[1]):
+				pair[0].disconnect(pair[1])
+	go.pressed.connect(func() -> void:
+		if not patch:
+			OS.shell_open(Release.download_url())
+			_close_dialog()
+			return
+		if failed[0]:
+			# Re-plan: some files may already be in place.
+			unhook.call()
+			_close_dialog()
+			_check_updates(true)
+			return
+		go.disabled = true
+		later.disabled = true
+		bar.visible = true
+		status.visible = true
+		status.text = "Downloading…"
+		updater.progress.connect(on_progress)
+		updater.downloaded.connect(on_done)
+		updater.failed.connect(on_fail)
+		updater.download())
+	later.pressed.connect(unhook)
+	_dialog("Update available", body)
+	if has_meta("auto_update") and patch:
+		go.pressed.emit.call_deferred()
 
 
 func _feedback_dialog() -> void:

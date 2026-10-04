@@ -44,6 +44,7 @@ version="$Version"
 channel="beta"
 server="$Server"
 download_url="$downloadUrl"
+update_url="$website/release.json"
 cert="$certEscaped"
 "@ | Set-Content $cfgPath -Encoding utf8
 try {
