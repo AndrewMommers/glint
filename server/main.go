@@ -108,6 +108,13 @@ func (c *Client) writeLoop() {
 	}
 }
 
+func readErr(err error) string {
+	if err == nil {
+		return "connection closed"
+	}
+	return err.Error()
+}
+
 func cleanName(s string) string {
 	s = strings.TrimSpace(s)
 	s = strings.Map(func(r rune) rune {
@@ -161,6 +168,7 @@ func (h *Hub) serve(conn net.Conn) {
 	}
 	if c.room != nil {
 		r := c.room
+		log.Printf("%s (%s) dropped from room %s: %v", c.name, c.id, r.code, readErr(sc.Err()))
 		r.post(func() { r.leave(c, true) })
 	}
 	if c.user != "" && h.accounts != nil {
@@ -464,6 +472,7 @@ func main() {
 	awEndpoint := flag.String("appwrite-endpoint", "", "Appwrite endpoint, e.g. https://syd.cloud.appwrite.io/v1 (enables the Appwrite backend; key from $APPWRITE_API_KEY or <data>/appwrite.key)")
 	awProject := flag.String("appwrite-project", "", "Appwrite project id")
 	awDB := flag.String("appwrite-db", "uno", "Appwrite TablesDB database id")
+	wsAddr := flag.String("ws", "", "also accept WebSocket clients (the browser version) on this address, e.g. 127.0.0.1:7780; put a TLS proxy in front")
 
 	if len(os.Args) > 1 && os.Args[1] == "gencert" {
 		// glint-server gencert DATA_DIR : create the TLS certificate if missing
@@ -547,6 +556,9 @@ func main() {
 	}
 
 	h.lastAct.Store(time.Now().Unix()) // idle time counts from when we're ready
+	if *wsAddr != "" {
+		go h.listenWS(*wsAddr)
+	}
 
 	// Save pending account changes before exiting (Ctrl+C, service stop).
 	shutdown := func(why string) {

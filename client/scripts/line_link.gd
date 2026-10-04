@@ -11,6 +11,7 @@ var host := ""
 var port := 0
 var secure := false
 var _tcp := StreamPeerTCP.new()
+var _ws: WebSocketPeer  # browser builds: WebSocket instead of TCP
 var _tls: StreamPeerTLS
 var _tls_opts: TLSOptions
 var _buf := PackedByteArray()
@@ -38,6 +39,18 @@ func open(h: String, p: int, retries: int = 0, tls_opts: TLSOptions = null) -> v
 
 
 func _dial() -> void:
+	if Release.is_web():
+		_ws = WebSocketPeer.new()
+		_ws.inbound_buffer_size = 4 << 20  # room for minutes of updates while a tab is hidden
+		var url := Release.ws_url()
+		secure = url.begins_with("wss://")
+		if _ws.connect_to_url(url) != OK:
+			_ws = null
+			_retry_or_fail("Couldn't reach the Glint server")
+			return
+		_state = "connecting"
+		_started = Time.get_ticks_msec() / 1000.0
+		return
 	var ip := host
 	if not ip.is_valid_ip_address():
 		ip = IP.resolve_hostname(host, IP.TYPE_ANY)
@@ -52,6 +65,9 @@ func _dial() -> void:
 
 
 func close() -> void:
+	if _ws != null:
+		_ws.close()
+		_ws = null
 	if _tls != null:
 		_tls.disconnect_from_stream()
 	if _state != "idle":
@@ -64,6 +80,9 @@ func close() -> void:
 func send(msg: Dictionary) -> void:
 	if _state != "connected":
 		return
+	if _ws != null:
+		_ws.send_text(JSON.stringify(Net._intify(msg)))
+		return
 	var data := (JSON.stringify(Net._intify(msg)) + "\n").to_utf8_buffer()
 	if _tls != null:
 		_tls.put_data(data)
@@ -72,6 +91,7 @@ func send(msg: Dictionary) -> void:
 
 
 func _retry_or_fail(reason: String) -> void:
+	_ws = null
 	_tcp = StreamPeerTCP.new()
 	_tls = null
 	if _retries > 0:
@@ -87,6 +107,9 @@ func _retry_or_fail(reason: String) -> void:
 
 func _process(_d: float) -> void:
 	if _state == "idle":
+		return
+	if _ws != null:
+		_poll_ws()
 		return
 	_tcp.poll()
 	var elapsed := Time.get_ticks_msec() / 1000.0 - _started
@@ -144,6 +167,28 @@ func _process(_d: float) -> void:
 		var msg = JSON.parse_string(line)
 		if msg is Dictionary:
 			message.emit(msg)
+
+
+func _poll_ws() -> void:
+	_ws.poll()
+	match _ws.get_ready_state():
+		WebSocketPeer.STATE_CONNECTING:
+			if Time.get_ticks_msec() / 1000.0 - _started > 8.0:
+				_retry_or_fail("Couldn't reach the Glint server")
+		WebSocketPeer.STATE_OPEN:
+			if _state == "connecting":
+				_state = "connected"
+				connected.emit()
+			while _ws != null and _ws.get_available_packet_count() > 0:
+				var msg = JSON.parse_string(_ws.get_packet().get_string_from_utf8())
+				if msg is Dictionary:
+					message.emit(msg)
+		WebSocketPeer.STATE_CLOSED:
+			if _state == "connected":
+				_ws = null
+				_lost()
+			else:
+				_retry_or_fail("Couldn't reach the Glint server")
 
 
 func _lost() -> void:

@@ -74,6 +74,25 @@ static func tls_for(host: String, _port: int) -> TLSOptions:
 	return TLSOptions.client(cert)
 
 
+## Running in a browser (the web build).
+static func is_web() -> bool:
+	return OS.has_feature("web")
+
+
+## Where the web build connects. By default it's /ws on the site it was loaded
+## from (the proxy serves both); a local test page talks to a local server.
+static func ws_url() -> String:
+	var url: String = _c().get_value("release", "ws_url", "")
+	if url != "" or not is_web():
+		return url
+	var host := str(JavaScriptBridge.eval("location.host", true))
+	var hostname := str(JavaScriptBridge.eval("location.hostname", true))
+	if hostname == "localhost" or hostname == "127.0.0.1":
+		return "ws://127.0.0.1:7780/ws"
+	var secure := str(JavaScriptBridge.eval("location.protocol", true)) == "https:"
+	return ("wss://" if secure else "ws://") + host + "/ws"
+
+
 static func is_local(host: String) -> bool:
 	host = host.to_lower()
 	if host == "localhost" or host == "::1" or host.ends_with(".local") or host.ends_with(".lan"):

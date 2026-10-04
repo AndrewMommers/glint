@@ -494,9 +494,10 @@ func show_menu() -> void:
 	fb.custom_minimum_size = Vector2(0, 42)
 	fb.tooltip_text = "Report a bug or share an idea"
 	bottom.add_child(fb)
-	var quit := UI.button("Quit", func() -> void: get_tree().quit())
-	quit.custom_minimum_size = Vector2(110, 42)
-	bottom.add_child(quit)
+	if not Release.is_web():  # a browser tab is closed by the browser
+		var quit := UI.button("Quit", func() -> void: get_tree().quit())
+		quit.custom_minimum_size = Vector2(110, 42)
+		bottom.add_child(quit)
 	left.add_child(bottom)
 
 	# Right: profile card.
@@ -1131,6 +1132,9 @@ func show_singleplayer() -> void:
 
 
 func _start_singleplayer(bots: int, settings: Dictionary, stage: int) -> void:
+	if Release.is_web():
+		_start_singleplayer_online(bots, settings, stage)
+		return
 	var err := Net.start_local_server(Net.LOCAL_PORT, false, false)
 	if err != "":
 		toast(err, true)
@@ -1147,6 +1151,18 @@ func _start_singleplayer(bots: int, settings: Dictionary, stage: int) -> void:
 	else:
 		_on_connected = create
 		Net.connect_to("127.0.0.1", Net.LOCAL_PORT, 15)
+
+
+## The browser can't start a local server, so solo games and the campaign are
+## private tables with bots on the Glint server.
+func _start_singleplayer_online(bots: int, settings: Dictionary, stage: int) -> void:
+	campaign_stage = stage
+	var s: Dictionary = settings.duplicate(true)
+	s.public = false
+	_connecting("Level %d · %s" % [stage + 1, Cosmetics.STAGES[stage].name] if stage >= 0 else "Shuffling the deck…")
+	_with_server(func() -> void:
+		singleplayer = true
+		Net.send({"t": "create", "name": _name(), "bots": bots, "settings": s}))
 
 
 func _connecting(text: String) -> void:
@@ -1261,7 +1277,7 @@ func _with_server(then: Callable) -> void:
 	singleplayer = false
 	_on_connected = then
 	var retries := 1
-	if not Release.is_release() and Release.is_local(a[0]):
+	if not Release.is_release() and Release.is_local(a[0]) and not Release.is_web():
 		# Dev builds: run a server on this PC if there isn't one.
 		Net.start_local_server(int(a[1]), false)
 		retries = 15
@@ -2365,7 +2381,8 @@ func _net_disconnected(reason: String) -> void:
 		show_menu()
 		return
 	# Dropped out of an online game: get straight back in.
-	if not singleplayer and _last_state.size() > 0 and not Net.seat.is_empty():
+	# (On the web, solo games are on the server too, so they can be rejoined.)
+	if (not singleplayer or Release.is_web()) and _last_state.size() > 0 and not Net.seat.is_empty():
 		_try_rejoin()
 		return
 	if reason != "":

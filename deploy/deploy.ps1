@@ -11,7 +11,9 @@ param(
     [string]$User = "root",
     [switch]$FirstTime,
     [switch]$SyncData,
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [switch]$Web,          # also upload the browser build (build\web)
+    [string]$Domain        # HTTPS name for the web build; default <ip>.sslip.io
 )
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
@@ -24,7 +26,9 @@ if (-not $Server) {
     $saved = Get-Content $vpsFile -Raw | ConvertFrom-Json
     $Server = $saved.host
     if (-not $PSBoundParameters.ContainsKey("User")) { $User = $saved.user }
+    if (-not $Domain -and $saved.domain) { $Domain = $saved.domain }
 }
+if (-not $Domain) { $Domain = ($Server -replace '\.', '-') + ".sslip.io" }
 $target = "$User@$Server"
 $sshOpts = @("-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=15")
 
@@ -55,12 +59,12 @@ $stage = Join-Path $env:TEMP "glint-deploy"
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item (Join-Path $root "build\glint-server-linux") (Join-Path $stage "glint-server")
-foreach ($f in "glint.service", "setup-vps.sh", "install.sh") {
+foreach ($f in "glint.service", "setup-vps.sh", "install.sh", "Caddyfile") {
     $text = (Get-Content (Join-Path $PSScriptRoot $f) -Raw) -replace "`r", ""
     [IO.File]::WriteAllText((Join-Path $stage $f), $text)
 }
 
-$flags = @()
+$flags = @("-ws 127.0.0.1:7780")  # browser clients, behind Caddy
 $aw = Join-Path $beta "appwrite.json"
 if ((Test-Path $aw) -and (Test-Path (Join-Path $data "appwrite.key"))) {
     $cfg = Get-Content $aw -Raw | ConvertFrom-Json
@@ -69,6 +73,14 @@ if ((Test-Path $aw) -and (Test-Path (Join-Path $data "appwrite.key"))) {
 $versionFile = Join-Path $beta "VERSION"
 if (Test-Path $versionFile) { $flags += "-min-client $((Get-Content $versionFile -Raw).Trim())" }
 [IO.File]::WriteAllText((Join-Path $stage "glint.env"), "GLINT_FLAGS=$($flags -join ' ')`n")
+
+$caddy = Join-Path $stage "Caddyfile"
+[IO.File]::WriteAllText($caddy, ((Get-Content $caddy -Raw) -replace "\{DOMAIN\}", $Domain))
+if ($Web) {
+    $webBuild = Join-Path $root "build\web"
+    if (-not (Test-Path (Join-Path $webBuild "index.html"))) { throw "No web build in build\web (run release.cmd first)." }
+    Copy-Item $webBuild (Join-Path $stage "web") -Recurse
+}
 
 $uploadData = $FirstTime -or $SyncData
 if ($uploadData) {
@@ -105,7 +117,8 @@ try {
     else { Write-Host "Port 7777 didn't answer. Check the Vultr firewall group allows TCP 7777." -ForegroundColor Yellow }
 } finally { $tcp.Dispose() }
 
-@{ host = $Server; user = $User } | ConvertTo-Json | Set-Content $vpsFile -Encoding utf8
+@{ host = $Server; user = $User; domain = $Domain } | ConvertTo-Json | Set-Content $vpsFile -Encoding utf8
 Write-Host ""
 Write-Host "Deployed. Players connect to $($Server):7777" -ForegroundColor Green
+Write-Host "Browser version: https://$Domain/" -ForegroundColor Green
 Write-Host "Build a release that points at it:  .\release.cmd -Version <x> -Server $($Server):7777 -Godot <path> -Publish"

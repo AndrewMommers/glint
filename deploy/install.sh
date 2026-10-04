@@ -13,6 +13,24 @@ if [ -d data ]; then
   done
   echo "data uploaded"
 fi
+# HTTPS front end for the browser version (Caddy) and the web build itself.
+if ! command -v caddy >/dev/null; then
+  apt-get install -yq caddy
+fi
+ufw allow 80/tcp comment "Glint web (HTTPS redirect)" >/dev/null
+ufw allow 443/tcp comment "Glint web" >/dev/null
+if [ -d web ]; then
+  rm -rf /opt/glint/web.new && cp -r web /opt/glint/web.new
+  chmod -R a+rX /opt/glint/web.new
+  rm -rf /opt/glint/web.old; [ -d /opt/glint/web ] && mv /opt/glint/web /opt/glint/web.old
+  mv /opt/glint/web.new /opt/glint/web && rm -rf /opt/glint/web.old
+  chmod 755 /opt/glint
+  echo "web build uploaded"
+fi
+install -m 644 Caddyfile /etc/caddy/Caddyfile
+systemctl enable --now caddy >/dev/null 2>&1
+systemctl reload caddy || systemctl restart caddy
+
 rm -rf /tmp/glint-deploy
 systemctl daemon-reload
 systemctl restart glint

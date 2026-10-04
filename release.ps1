@@ -58,6 +58,13 @@ notes="$notesEscaped"
 [IO.File]::WriteAllText($cfgPath, $cfgText, (New-Object System.Text.UTF8Encoding $false))
 try {
     & (Join-Path $root "export.ps1") -Godot $Godot
+    # Browser build (same release.cfg), served by Caddy on the VPS (deploy.cmd -Web).
+    $web = Join-Path $root "build\web"
+    Remove-Item $web -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force $web | Out-Null
+    Write-Host "Exporting web build..."
+    & $Godot --headless --path (Join-Path $root "client") --export-release "Web" (Join-Path $web "index.html") *> $null
+    if (-not (Test-Path (Join-Path $web "index.wasm"))) { throw "web export failed (are the web export templates installed?)" }
 } finally {
     Remove-Item $cfgPath -ErrorAction SilentlyContinue
 }

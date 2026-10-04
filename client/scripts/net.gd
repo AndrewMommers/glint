@@ -37,6 +37,7 @@ func _ready() -> void:
 		_ping_t = 0.0
 		connected.emit())
 	_link.disconnected.connect(func(reason: String) -> void:
+		print("game: disconnected: %s" % reason)
 		my_id = ""
 		disconnected.emit(reason))
 	_link.message.connect(_on_message)
@@ -96,6 +97,10 @@ func _now() -> float:
 func _process(delta: float) -> void:
 	if not _link.is_online():
 		return
+	if delta > 2.0:
+		# The game wasn't running (e.g. a hidden browser tab): that silence
+		# was ours, not the server's. Give the connection a fresh window.
+		_heard = _now()
 	_ping_t += delta
 	if _ping_t >= PING_EVERY:
 		_ping_t = 0.0
@@ -166,6 +171,8 @@ func find_server_binary() -> String:
 ## Starts a server on this machine. lan=true listens on all interfaces so
 ## friends can join. Returns an error message or "".
 func start_local_server(port: int, lan: bool, accounts: bool = true) -> String:
+	if Release.is_web():
+		return "Browsers can't run a local server"
 	if _server_pids.has(port) and OS.is_process_running(_server_pids[port]):
 		return ""
 	var path := find_server_binary()

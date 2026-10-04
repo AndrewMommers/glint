@@ -1,0 +1,32 @@
+# Caddy in front of the Glint server: HTTPS with a free, auto-renewed
+# certificate, the browser version of the game, and its WebSocket connection.
+# deploy.ps1 replaces {DOMAIN} (a real domain, or <ip-with-dashes>.sslip.io).
+
+{DOMAIN} {
+	encode {
+		zstd
+		gzip
+		match {
+			header Content-Type text/*
+			header Content-Type application/javascript*
+			header Content-Type application/json*
+			header Content-Type application/wasm*
+			header Content-Type application/octet-stream*
+		}
+	}
+
+	# Game connections from the browser build.
+	handle /ws {
+		reverse_proxy 127.0.0.1:7780
+	}
+
+	# The browser build itself.
+	handle {
+		root * /opt/glint/web
+		file_server
+		@engine path *.wasm *.js
+		header @engine Cache-Control "public, max-age=3600"
+		@fresh path / /index.html *.pck
+		header @fresh Cache-Control "no-cache"
+	}
+}
