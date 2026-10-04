@@ -744,7 +744,7 @@ func show_profile() -> void:
 	_decor()
 	var p := _card(860)
 	var col := UI.vbox(20)
-	col.add_child(_header("Profile", "Your progress is saved on this PC.", show_menu))
+	col.add_child(_header("Profile", "Your progress is saved in this browser." if Release.is_web() else "Your progress is saved on this PC.", show_menu))
 
 	var head := UI.hbox(22)
 	head.add_child(_avatar(120))
@@ -1741,7 +1741,7 @@ func show_options() -> void:
 	_decor()
 	var p := _card(1040)
 	var col := UI.vbox(18)
-	col.add_child(_header("Options", "Changes apply instantly and are saved on this PC.", show_menu))
+	col.add_child(_header("Options", "Changes apply instantly and are saved in this browser." if Release.is_web() else "Changes apply instantly and are saved on this PC.", show_menu))
 	col.add_child(_options_body())
 	p.add_child(col)
 
@@ -1790,7 +1790,7 @@ func _options_body() -> HBoxContainer:
 	right.add_child(UI.toggle("Reduce motion", "No screen shake, confetti or floating menu cards.", Settings.v("reduce_motion"), setv.call("reduce_motion")))
 
 	right.add_child(UI.section("Account & data"))
-	var acct := "Signed in as %s" % Online.username if Online.is_signed_in() else "Not signed in — progress is saved on this PC only."
+	var acct := "Signed in as %s" % Online.username if Online.is_signed_in() else ("Not signed in. Progress is saved in this browser only." if Release.is_web() else "Not signed in. Progress is saved on this PC only.")
 	var al := UI.label(acct, 14, 500, UI.MUTED)
 	al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(al)
@@ -1805,7 +1805,8 @@ func _options_body() -> HBoxContainer:
 		if table == null:
 			show_options()))
 	row.add_child(UI.button("Feedback…", _feedback_dialog))
-	row.add_child(UI.button("Check for updates", func() -> void: _check_updates(true)))
+	if not Release.is_web():  # the browser version is always the latest
+		row.add_child(UI.button("Check for updates", func() -> void: _check_updates(true)))
 	var reset := UI.button("Reset progress…", _confirm_reset_progress)
 	UI.style_button(reset, Color(UI.DANGER, 0.7))
 	row.add_child(reset)
@@ -2118,6 +2119,19 @@ func toast_action(text: String, action: String, cb: Callable) -> void:
 # ---------------------------------------------------------------- beta
 
 func _show_outdated(msg: Dictionary) -> void:
+	if Release.is_web():
+		# A newer version is live; the page just has an old copy loaded.
+		var wb := UI.vbox(14)
+		var wl := UI.label("A new version of Glint is out. Reload to get it. Your progress is safe.", 15, 500, UI.MUTED)
+		wl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		wl.custom_minimum_size = Vector2(420, 0)
+		wb.add_child(wl)
+		var wr := UI.hbox(10)
+		wr.add_child(UI.spacer(0, 0, true))
+		wr.add_child(UI.button("Reload", func() -> void: JavaScriptBridge.eval("location.reload()"), true, 160))
+		wb.add_child(wr)
+		_dialog("Update available", wb)
+		return
 	# The server wants a newer build: offer the in-game update if there is one.
 	_check_updates(true, func() -> void:
 		var body := UI.vbox(14)

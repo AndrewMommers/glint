@@ -2,9 +2,8 @@
 
 # Glint
 
-> ### ⬇ [Download Glint (closed beta)](https://glint.appwrite.network/download/)
-> The installer (`Glint-Setup-….exe`) and the portable zip live in the **glint-beta** repo's Releases.
-> This repo is the source code.
+> ### ▶ [Play Glint in your browser (closed beta)](https://glint.appwrite.network/play/)
+> Glint is played on the website. There's nothing to install. This repo is the source code.
 
 A modern color-matching card game with a **Go** authoritative game server and a **Godot 4.6** client with a frosted-glass (glassmorphism) UI.
 
@@ -61,7 +60,19 @@ Release builds always connect to the official server baked into the build, so th
 - **Rejoining.** If your connection drops or the game closes mid-round, a bot plays your seat. The game reconnects you automatically for 90 seconds, and the main menu offers *Rejoin* after a restart. The server holds the seat for the rest of the match, and if every player drops, it pauses the game and keeps the room for 3 minutes. Clients send a ping every 5 seconds, so dead connections are noticed in seconds.
 - **Chat** works in lobbies and at the table: press `Enter` or `T`. Messages are limited to 140 characters and 5 per 10 seconds, with a profanity mask, and joins, leaves and host changes appear as system lines. It can be turned off in Options.
 
-### Building the standalone game (Glint.exe)
+### Releasing (the browser version)
+
+```powershell
+.\release.cmd -Version 0.9.0-beta.12 -Publish
+```
+
+This bumps the version, runs the server tests, exports the web build to `build\web` and deploys the server plus the game to the VPS (`deploy\deploy.cmd -Web`). Players play it on the website's **Play** page, which embeds the game from the VPS. Opened directly, the game redirects to the website, and only the website may embed it (Caddy sets `frame-ancestors`).
+
+In the browser the game talks to the server over WebSocket (`wss://<vps>/ws`, through Caddy) instead of raw TCP. Solo games and the campaign are private tables with bots on the server.
+
+### Building a Windows build (local testing only)
+
+Glint isn't distributed as a desktop app any more, but a Windows build is handy for testing:
 
 ```powershell
 .\export.ps1 -Godot "C:\path\to\Godot_v4.6.2-stable_win64.exe"
@@ -139,7 +150,8 @@ client/                 Godot 4.6 project
 
 `website/` is the game's landing page at **https://glint.appwrite.network**: a static site with no build step, no trackers and no external requests.
 It's hosted on Appwrite Sites. Every push to `main` that changes `website/` redeploys it (`.github/workflows/deploy-website.yml` runs `tools/deploy_website.sh`).
-Game downloads live in a public Appwrite Storage bucket. `release.cmd ... -Publish` uploads them with `tools/publish_download.sh` and updates `website/release.json`, which `/download/` reads.
+`/play/` embeds the game from the VPS full-screen. `/download/` only redirects to `/play/`, so old links and older game builds still land on the right page.
+To preview the site, double-click `tools\preview-website.cmd`; the local preview can embed the live game too.
 To preview it, run `python -m http.server 8099 --directory website` and open http://localhost:8099.
 The screenshots in `website/assets/shots/` are taken from the game.
 

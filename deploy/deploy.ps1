@@ -75,7 +75,8 @@ if (Test-Path $versionFile) { $flags += "-min-client $((Get-Content $versionFile
 [IO.File]::WriteAllText((Join-Path $stage "glint.env"), "GLINT_FLAGS=$($flags -join ' ')`n")
 
 $caddy = Join-Path $stage "Caddyfile"
-[IO.File]::WriteAllText($caddy, ((Get-Content $caddy -Raw) -replace "\{DOMAIN\}", $Domain))
+$site = (Get-Content (Join-Path $beta "appwrite.json") -Raw | ConvertFrom-Json).website
+[IO.File]::WriteAllText($caddy, ((Get-Content $caddy -Raw) -replace "\{DOMAIN\}", $Domain -replace "\{SITE\}", $site))
 if ($Web) {
     $webBuild = Join-Path $root "build\web"
     if (-not (Test-Path (Join-Path $webBuild "index.html"))) { throw "No web build in build\web (run release.cmd first)." }

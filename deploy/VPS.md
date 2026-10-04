@@ -49,11 +49,13 @@ This takes a few minutes. It:
 
 At the end it checks that port 7777 answers from your PC.
 
-## 4. Point a release at it
+## 4. Publish the game
 
 ```powershell
-.\release.cmd -Version 0.9.0-beta.5 -Server <IPv4 address>:7777 -Godot <path to Godot> -Publish
+.\release.cmd -Version 0.9.0-beta.12 -Publish
 ```
+
+That builds the browser version and deploys it with the server. Caddy serves it with free HTTPS at `https://<ip-with-dashes>.sslip.io/`, or at your own domain with `deploy.cmd -Domain play.example.com`. Players reach it through the website's Play page.
 
 From now on the VPS owns the invite list. Use `deploy\server.cmd` instead of
 `beta\invites.cmd`, and don't run `beta\run-server.cmd` for testers any more.

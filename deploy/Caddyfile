@@ -1,6 +1,7 @@
 # Caddy in front of the Glint server: HTTPS with a free, auto-renewed
 # certificate, the browser version of the game, and its WebSocket connection.
-# deploy.ps1 replaces {DOMAIN} (a real domain, or <ip-with-dashes>.sslip.io).
+# deploy.ps1 replaces {DOMAIN} (a real domain, or <ip-with-dashes>.sslip.io)
+# and {SITE} (the website that embeds the game, from beta/appwrite.json).
 
 {DOMAIN} {
 	encode {
@@ -20,8 +21,10 @@
 		reverse_proxy 127.0.0.1:7780
 	}
 
-	# The browser build itself.
+	# The browser build itself, only playable inside the Glint website.
 	handle {
+		# Embeddable by the website, and by the local preview (tools/preview-website.cmd).
+		header Content-Security-Policy "frame-ancestors {SITE} http://localhost:8099"
 		root * /opt/glint/web
 		file_server
 		@engine path *.wasm *.js

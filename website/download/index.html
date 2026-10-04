@@ -3,65 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Download Glint</title>
-  <meta name="description" content="Download the Glint closed beta for Windows: the installer or the portable zip.">
-  <meta name="theme-color" content="#0b0d22">
-  <link rel="icon" type="image/png" href="../assets/favicon.png">
-  <link rel="stylesheet" href="../styles.css">
+  <title>Play Glint</title>
+  <!-- Glint is played in the browser now; old download links land here. -->
+  <meta http-equiv="refresh" content="0; url=../play/">
+  <link rel="canonical" href="../play/">
+  <script>location.replace("../play/");</script>
 </head>
-<body>
-  <div class="aurora" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
-
-  <header class="nav glass" id="top">
-    <a class="brand" href="../" aria-label="Glint home">
-      <img src="../assets/emblem.svg" alt="" width="36" height="36">
-      <img src="../assets/wordmark.svg" alt="Glint" class="brand-word" width="88" height="36">
-    </a>
-    <nav aria-label="Main">
-      <a href="../#features">Features</a>
-      <a href="../#how">How to play</a>
-      <a href="../#faq">FAQ</a>
-    </nav>
-    <a class="btn btn-ghost btn-sm" href="../">Back to site</a>
-  </header>
-
-  <main class="dl">
-    <section class="dl-card glass">
-      <img src="../assets/emblem.svg" alt="" width="84" height="84" class="dl-emblem">
-      <h1 id="dl-title">Download Glint</h1>
-      <p class="lead" id="dl-status">Loading the latest build…</p>
-
-      <div class="cta dl-cta">
-        <a class="btn btn-primary btn-lg" id="dl-setup" href="#" aria-disabled="true">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 19h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>Installer for Windows</span>
-        </a>
-        <a class="btn btn-ghost btn-lg" id="dl-zip" href="#" hidden>Portable zip</a>
-      </div>
-      <p class="small" id="dl-meta">Windows 10 and 11, 64-bit. Free closed beta.</p>
-    </section>
-
-    <section class="section dl-steps">
-      <h2>Installing</h2>
-      <ol class="steps">
-        <li class="glass"><span class="num">1</span><div><h3>Run the installer</h3><p>Open <b id="dl-file">Glint-Setup.exe</b> from your downloads. No admin rights needed.</p></div></li>
-        <li class="glass"><span class="num">2</span><div><h3>"Windows protected your PC"?</h3><p>The beta isn't code-signed yet. Click <b>More info</b>, then <b>Run anyway</b>.</p></div></li>
-        <li class="glass"><span class="num">3</span><div><h3>Play</h3><p>Launch Glint from the Start menu. Solo and campaign work offline, and online play needs an invite code.</p></div></li>
-        <li class="glass"><span class="num">4</span><div><h3>Updating</h3><p>Nothing to download again. Glint updates itself from inside the game, and your progress and settings are kept.</p></div></li>
-      </ol>
-      <details class="glass dl-verify">
-        <summary>Verify the download (SHA-256)</summary>
-        <p>In PowerShell: <kbd>Get-FileHash .\<span id="dl-file2">Glint-Setup.exe</span></kbd></p>
-        <p class="hash" id="dl-hash">—</p>
-      </details>
-    </section>
-  </main>
-
-  <footer class="footer">
-    <div class="foot-brand"><img src="../assets/emblem.svg" alt="" width="28" height="28"> <span>Glint</span></div>
-    <p>© 2026 Andrew Mommers. Glint is an independent game and is not affiliated with or endorsed by any other card game brand.</p>
-    <p><a href="../">Home</a> · <a href="../#faq">FAQ</a></p>
-  </footer>
-  <script src="download.js" defer></script>
+<body style="background:#0b0d22;color:#fff;font-family:system-ui,sans-serif">
+  <p>Glint now runs in your browser. <a href="../play/" style="color:#b9a8ff">Play now</a>.</p>
 </body>
 </html>

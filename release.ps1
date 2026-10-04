@@ -1,44 +1,33 @@
-# Builds a closed-beta release of Glint.
+# Builds a release of Glint and, with -Publish, puts it live.
 #
-#   .\release.ps1 -Version 0.9.0-beta.1 -Server yourname.duckdns.org:7777 -Godot C:\path\to\Godot_v4.6.2-stable_win64.exe
-#   ... -Publish      uploads it to the website's download bucket (Appwrite Storage) and
-#                     pushes website/release.json, which redeploys the site with the new version
-#   ... -GitHub       with -Publish, also mirrors it as a pre-release on GitHub (-BetaRepo)
+#   .\release.cmd -Version 0.9.0-beta.12            # build only (build\web)
+#   .\release.cmd -Version 0.9.0-beta.12 -Publish   # build, then deploy server + game to the VPS
 #
-# Produces dist\Glint-<version>-windows.zip containing Glint.exe, Glint.pck,
-# glint-server.exe (singleplayer) and README.txt. The build has the official
-# server address, its pinned TLS certificate and the version baked in.
+# Glint is played in the browser, on the website's Play page, which loads the
+# game from the VPS. There's no desktop download any more; export.ps1 still
+# makes a Windows build for local testing.
 param(
     [Parameter(Mandatory = $true)][string]$Version,
-    [Parameter(Mandatory = $true)][string]$Server,
-    [Parameter(Mandatory = $true)][string]$Godot,
-    [string]$BetaRepo = "AndrewMommers/glint-beta",
-    [switch]$Publish,
-    [switch]$GitHub
+    [string]$Godot = "$env:TEMP\gd462\Godot_v4.6.2-stable_win64.exe",
+    [switch]$Publish
 )
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { throw "Version must look like 0.9.0-beta.1" }
-if ($Server -notmatch '^[^:\s]+:\d+$') { throw "Server must be host:port, e.g. yourname.duckdns.org:7777" }
-$website = (Get-Content (Join-Path $root "beta\appwrite.json") -Raw | ConvertFrom-Json).website
-$downloadUrl = "$website/download/"
-
-# 1. Server binary + TLS certificate (created once, then reused forever).
+if (-not (Test-Path $Godot)) { throw "Godot not found at $Godot (pass -Godot <path to Godot_v4.6.2-stable_win64.exe>)" }
 $beta = Join-Path $root "beta"
-$serverExe = Join-Path $beta "glint-server.exe"
-$data = Join-Path $beta "server-data"
+$website = (Get-Content (Join-Path $beta "appwrite.json") -Raw | ConvertFrom-Json).website
+
+# 1. Server version + tests (the server checks clients are at least this version).
 (Get-Content (Join-Path $root "server\beta.go") -Raw) -replace 'const Version = "[^"]*"', "const Version = `"$Version`"" |
     Set-Content (Join-Path $root "server\beta.go") -NoNewline
 Push-Location (Join-Path $root "server")
-try { go test ./... | Out-Null; if ($LASTEXITCODE) { throw "server tests failed" }; go build -o $serverExe . } finally { Pop-Location }
-& $serverExe gencert $data | Out-Null
-$certPem = (Get-Content (Join-Path $data "tls\server.crt") -Raw).Trim()
+try { go test ./... | Out-Null; if ($LASTEXITCODE) { throw "server tests failed (run: cd server; go test ./...)" } } finally { Pop-Location }
 
-# 2. Bake the release config into the game and export.
+# 2. Bake the release config into the game and export the browser build.
 $cfgPath = Join-Path $root "client\release.cfg"
-$certEscaped = $certPem -replace "`r", "" -replace "`n", "\n"
 # Release notes travel inside the build, for the "What's new" dialog after an update.
-$notesFile = Join-Path $root "beta\notes\$Version.md"
+$notesFile = Join-Path $beta "notes\$Version.md"
 $notesEscaped = ""
 if (Test-Path $notesFile) {
     $notesEscaped = (Get-Content $notesFile -Raw) -replace "\\", "\\" -replace '"', '\"' -replace "`r", "" -replace "`n", "\n"
@@ -48,96 +37,32 @@ $cfgText = @"
 
 version="$Version"
 channel="beta"
-server="$Server"
-download_url="$downloadUrl"
-update_url="$website/release.json"
-cert="$certEscaped"
+download_url="$website/play/"
 notes="$notesEscaped"
 "@
 # No byte-order mark: Godot's ConfigFile can't see the section after one.
 [IO.File]::WriteAllText($cfgPath, $cfgText, (New-Object System.Text.UTF8Encoding $false))
+$web = Join-Path $root "build\web"
 try {
-    & (Join-Path $root "export.ps1") -Godot $Godot
-    # Browser build (same release.cfg), served by Caddy on the VPS (deploy.cmd -Web).
-    $web = Join-Path $root "build\web"
     Remove-Item $web -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force $web | Out-Null
-    Write-Host "Exporting web build..."
-    & $Godot --headless --path (Join-Path $root "client") --export-release "Web" (Join-Path $web "index.html") | Out-Null  # piping makes PowerShell wait for the GUI exe
+    Write-Host "Importing and exporting the web build..."
+    & $Godot --headless --path (Join-Path $root "client") --import | Out-Null
+    # Piping makes PowerShell wait for the (GUI) Godot exe to finish.
+    & $Godot --headless --path (Join-Path $root "client") --export-release "Web" (Join-Path $web "index.html") | Out-Null
     if (-not (Test-Path (Join-Path $web "index.wasm"))) { throw "web export failed (are the web export templates installed?)" }
 } finally {
     Remove-Item $cfgPath -ErrorAction SilentlyContinue
 }
+[IO.File]::WriteAllText((Join-Path $beta "VERSION"), $Version)
 
-# 3. Package.
-$name = "Glint-$Version-windows"
-$dist = Join-Path $root "dist"
-$stage = Join-Path $dist $name
-Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force $stage | Out-Null
-Copy-Item (Join-Path $root "build\Glint.exe"), (Join-Path $root "build\Glint.pck"), (Join-Path $root "build\glint-server.exe") $stage
-(Get-Content (Join-Path $beta "TESTER-README.txt") -Raw) -replace '\{VERSION\}', $Version -replace '\{SERVER\}', $Server |
-    Set-Content (Join-Path $stage "README.txt") -Encoding utf8
-$zip = Join-Path $dist "$name.zip"
-Remove-Item $zip -ErrorAction SilentlyContinue
-Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $zip -CompressionLevel Optimal
-$sha = [Security.Cryptography.SHA256]::Create()
-$fs = [IO.File]::OpenRead($zip)
-try { $hash = -join ($sha.ComputeHash($fs) | ForEach-Object { $_.ToString("x2") }) } finally { $fs.Dispose(); $sha.Dispose() }
-Set-Content (Join-Path $beta "VERSION") $Version -NoNewline
-
-# Windows installer (Inno Setup, per-user, no admin).
-$iscc = @("$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe", "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") |
-    Where-Object { Test-Path $_ } | Select-Object -First 1
-$setup = Join-Path $dist "Glint-Setup-$Version.exe"
-if ($iscc) {
-    & $iscc /Q "/DVersion=$Version" "/DBuildDir=$(Join-Path $root 'build')" "/DReadme=$(Join-Path $stage 'README.txt')" (Join-Path $root "installer\glint.iss")
-    if ($LASTEXITCODE) { throw "installer build failed" }
-} else {
-    Write-Host "Inno Setup not found - skipping the installer (zip only)." -ForegroundColor Yellow
-    $setup = $null
-}
-
-$notes = Join-Path $dist "notes-$Version.md"
-$custom = Join-Path $beta "notes\$Version.md"
-$body = if (Test-Path $custom) { Get-Content $custom -Raw } else { "Closed beta build $Version." }
-@"
-$body
-
-**Install:** download **``Glint-Setup-$Version.exe``** and run it (no admin needed). Prefer no install? Use ``$name.zip``: unzip and run ``Glint.exe``.
-You need an invite code to create an account. Also available at $downloadUrl
-
-SHA-256: ``$hash``
-"@ | Set-Content $notes -Encoding utf8
-
+$mb = [math]::Round(((Get-ChildItem $web | Measure-Object Length -Sum).Sum) / 1MB, 1)
 Write-Host ""
-Write-Host "Built $zip" -ForegroundColor Green
-Write-Host "  size   $([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB"
-Write-Host "  sha256 $hash"
-if ($setup) { Write-Host "Built $setup ($([math]::Round((Get-Item $setup).Length / 1MB, 1)) MB)" -ForegroundColor Green }
-Write-Host "  server $Server (TLS, pinned certificate)"
-Write-Host "  beta\VERSION = $Version -> restart .\beta\run-server.ps1 so older builds must update"
+Write-Host "Built Glint $Version for the browser: build\web ($mb MB before compression)" -ForegroundColor Green
 
-# 4. Publish.
+# 3. Publish: the VPS serves the game; the website's Play page embeds it.
 if ($Publish) {
-    if (-not $setup) { throw "publishing needs the installer (install Inno Setup)" }
-    # Git's own bash (not WSL) runs the upload script.
-    $bash = Join-Path (Split-Path (Split-Path (Get-Command git).Source)) "bin\bash.exe"
-    & $bash (Join-Path $root "tools/publish_download.sh") $Version $setup $zip
-    if ($LASTEXITCODE) { throw "upload to Appwrite failed" }
-    git -C $root add website/release.json
-    git -C $root commit -m "Publish Glint $Version downloads" -- website/release.json | Out-Null
-    git -C $root push -q
-    Write-Host "Published: $downloadUrl (the site updates in about a minute)" -ForegroundColor Green
-
-    if ($GitHub) {
-        gh repo view $BetaRepo *> $null
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Creating $BetaRepo (builds only, no source)..."
-            gh repo create $BetaRepo --public --description "Glint closed beta builds (invite only)" --add-readme | Out-Null
-        }
-        gh release create "v$Version" $setup $zip --repo $BetaRepo --prerelease --title "Glint $Version (closed beta)" --notes-file $notes
-        # No tag on the source repo: tags there only show "Source code" downloads.
-        Write-Host "Mirrored: https://github.com/$BetaRepo/releases/tag/v$Version" -ForegroundColor Green
-    }
+    & (Join-Path $root "deploy\deploy.ps1") -Web -SkipTests
+    Write-Host "Live: $website/play/" -ForegroundColor Green
+    Write-Host "Commit server\beta.go and beta\VERSION to record the release."
 }
