@@ -1,6 +1,13 @@
 {
-  "version": "0.9.0-beta.5",
+  "version": "0.9.0-beta.6",
   "date": "2026-10-04",
-  "setup": { "name": "Glint-Setup-0.9.0-beta.5.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/setup-latest/download?project=6ac0ded2003c01a55e80", "bytes": 34264159, "sha256": "\ed8ac6b52cbc3f05de699a7b5884d2339e4d39bfd8c63d584cb1dabddc2bd467" },
-  "zip": { "name": "Glint-0.9.0-beta.5-windows.zip", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/zip-latest/download?project=6ac0ded2003c01a55e80", "bytes": 44084380, "sha256": "\aa9e7a663c252aad0441b6f0a326ba4c0d4779560e73e0cb9157981cef39ec59" }
+  "setup": { "name": "Glint-Setup-0.9.0-beta.6.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/setup-latest/download?project=6ac0ded2003c01a55e80", "bytes": 34273505, "sha256": "\c93b10b937ef869d4cf53ad9f1477036c5e0573da4e1ec8682238afa0caa3fb1" },
+  "zip": { "name": "Glint-0.9.0-beta.6-windows.zip", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/zip-latest/download?project=6ac0ded2003c01a55e80", "bytes": 44093216, "sha256": "\9aa33bc9b0ed16ba3b91dd5ffef357a74ce85435caf71f9d29829272614c675f" },
+  "patch": {
+    "exe_sha256": "c93e3677817bf400ecc054fac0da0f9848f6d34fe675cab7cc3b45c31f07fee2",
+    "files": [
+      { "name": "Glint.pck", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/pck-latest/download?project=6ac0ded2003c01a55e80", "bytes": 2380448, "sha256": "f6981df508a479a13425665b3e4cfb8968fda009b6ddf7f5478eb4e1c42c0101" },
+      { "name": "glint-server.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/server-latest/download?project=6ac0ded2003c01a55e80", "bytes": 10624000, "sha256": "e54b72e13318b356f6beb2549bb2fef650f2799ed18b0f0f8e8667fae0edfdb1" }
+    ]
+  }
 }
