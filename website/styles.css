@@ -237,7 +237,7 @@ main { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
 .legend p { color: var(--muted); font-size: 0.9rem; margin: 0; }
 .legend p b { color: var(--text); }
 
-/* ---- beta ---- */
+/* ---- call to action ---- */
 .cta-box { display: flex; align-items: center; justify-content: space-between; gap: 2rem; padding: 36px 40px; }
 .cta-box h2 { text-align: left; margin-bottom: 0.3em; }
 .cta-box p { color: var(--muted); margin: 0; max-width: 640px; }
@@ -293,8 +293,8 @@ main { max-width: 1160px; margin: 0 auto; padding: 0 20px; }
   .shot-wide { grid-column: span 2; }
   .steps { grid-template-columns: repeat(2, 1fr); }
   .cards-legend { grid-template-columns: repeat(3, 1fr); }
-  .beta { flex-direction: column; text-align: center; }
-  .beta h2 { text-align: center; }
+  .cta-box { flex-direction: column; text-align: center; }
+  .cta-box h2 { text-align: center; }
 }
 @media (max-width: 640px) {
   .nav nav { display: none; }
