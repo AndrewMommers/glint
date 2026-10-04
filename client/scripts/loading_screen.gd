@@ -53,7 +53,7 @@ func _ready() -> void:
 	for l in [status, tip, ver]:
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		add_child(l)
-	ver.text = "v%s%s" % [Release.version(), "  ·  closed beta" if Release.channel() == "beta" else ""]
+	ver.text = "v%s" % Release.version()
 	tip.text = "💡  " + Help.random_tip()
 	bar.modulate.a = 0.0
 	status.modulate.a = 0.0

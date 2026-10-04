@@ -658,7 +658,7 @@ func (a *Accounts) registerAppwrite(name, pw string) (string, *User, error) {
 	if err != nil {
 		return "", nil, awUserError(err, errTaken)
 	}
-	if err := a.aw.SetLabels(id, []string{"player", "beta"}); err != nil {
+	if err := a.aw.SetLabels(id, []string{"player"}); err != nil {
 		log.Printf("appwrite: labels for %s: %v", k, err)
 	}
 	u := &User{Name: name, AppwriteID: id, Level: 1, Created: time.Now().UTC()}

@@ -52,7 +52,7 @@ At the end it checks that port 7777 answers from your PC.
 ## 4. Publish the game
 
 ```powershell
-.\release.cmd -Version 0.9.0-beta.12 -Publish
+.\release.cmd -Version 1.0.1 -Publish
 ```
 
 That builds the browser version and deploys it with the server. Caddy serves it with free HTTPS at `https://<ip-with-dashes>.sslip.io/`, or at your own domain with `deploy.cmd -Domain play.example.com`. Players reach it through the website's Play page.

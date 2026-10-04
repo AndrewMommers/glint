@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"net"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -25,6 +26,40 @@ type Hub struct {
 	appwrite  *Appwrite    // non-nil when Appwrite is the backend
 	perIP     map[string]int
 	ipMu      sync.Mutex
+	regs      map[string][]time.Time // recent registrations per address (ipMu)
+}
+
+// Registration is open to anyone, so each address may only create a few
+// accounts per regWindow.
+const (
+	regsPerIP = 3
+	regWindow = time.Hour
+)
+
+// allowRegistration records a registration attempt from ip; false means the
+// address has created too many accounts recently.
+func (h *Hub) allowRegistration(ip string) bool {
+	if parsed := net.ParseIP(ip); parsed != nil && parsed.IsLoopback() {
+		return true // this machine (tests, a local server)
+	}
+	h.ipMu.Lock()
+	defer h.ipMu.Unlock()
+	if h.regs == nil {
+		h.regs = map[string][]time.Time{}
+	}
+	now := time.Now()
+	keep := h.regs[ip][:0]
+	for _, t := range h.regs[ip] {
+		if now.Sub(t) < regWindow {
+			keep = append(keep, t)
+		}
+	}
+	if len(keep) >= regsPerIP {
+		h.regs[ip] = keep
+		return false
+	}
+	h.regs[ip] = append(keep, now)
+	return true
 }
 
 const maxConnsPerIP = 12

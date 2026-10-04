@@ -454,8 +454,6 @@ func show_menu() -> void:
 	tw.tween_interval(3.5)
 	left.add_child(wm)
 	var tag := "v%s" % Release.version()
-	if Release.channel() == "beta":
-		tag += "  ·  CLOSED BETA"
 	left.add_child(UI.label(tag, 16, 600, UI.MUTED))
 	left.add_child(UI.spacer(0, 14))
 	var nav_glass := GlassPanel.new(16, 26)
@@ -1897,16 +1895,11 @@ func show_account() -> void:
 	keep.call(pw, "pw")
 	col.add_child(pw)
 	var pw2: LineEdit
-	var invite: LineEdit
 	if _account_mode == "register":
 		pw2 = UI.line_edit("", "Repeat password", 128)
 		pw2.secret = true
 		keep.call(pw2, "pw2")
 		col.add_child(pw2)
-		col.add_child(UI.section("Beta invite code"))
-		invite = UI.line_edit("", "GLINT-XXXX-XXXX (from the developer)", 20)
-		keep.call(invite, "invite")
-		col.add_child(invite)
 	if Online.last_error != "" and not Online.pending:
 		var err := UI.label(Online.last_error, 14, 600, UI.DANGER)
 		err.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1922,7 +1915,7 @@ func show_account() -> void:
 		if user.text.strip_edges().length() < 3 or pw.text.length() < 8:
 			toast("Enter a username (3+) and password (8+)", true)
 			return
-		Online.sign_in(Online.addr, user.text, pw.text, _account_mode == "register", invite.text if invite else "")
+		Online.sign_in(Online.addr, user.text, pw.text, _account_mode == "register")
 	var go := UI.button("Create account" if _account_mode == "register" else "Sign in", submit, true)
 	go.custom_minimum_size.y = 52
 	col.add_child(go)
@@ -2116,7 +2109,7 @@ func toast_action(text: String, action: String, cb: Callable) -> void:
 	tw.tween_callback(p.queue_free)
 
 
-# ---------------------------------------------------------------- beta
+# ---------------------------------------------------------------- updates & feedback
 
 func _show_outdated(msg: Dictionary) -> void:
 	if Release.is_web():
@@ -2135,7 +2128,7 @@ func _show_outdated(msg: Dictionary) -> void:
 	# The server wants a newer build: offer the in-game update if there is one.
 	_check_updates(true, func() -> void:
 		var body := UI.vbox(14)
-		var l := UI.label("You have v%s, the server needs v%s or newer. Download the latest beta to keep playing online. Your progress is safe." % [Release.version(), msg.get("min", "?")], 15, 500, UI.MUTED)
+		var l := UI.label("You have v%s, the server needs v%s or newer. Get the latest version to keep playing online. Your progress is safe." % [Release.version(), msg.get("min", "?")], 15, 500, UI.MUTED)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(440, 0)
 		body.add_child(l)
@@ -2319,7 +2312,7 @@ func _feedback_dialog() -> void:
 	body.add_child(text)
 	var attach := {"on": true}
 	body.add_child(UI.toggle("Attach game log", "Helps track down bugs. Contains no passwords.", true, func(v: bool) -> void: attach.on = v))
-	var note := UI.label("Sent to the beta server along with your game version, OS and screen size%s." % (" and username" if Online.is_signed_in() else ""), 12, 500, UI.MUTED)
+	var note := UI.label("Sent to the Glint team along with your game version, OS and screen size%s." % (" and username" if Online.is_signed_in() else ""), 12, 500, UI.MUTED)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(note)
 	var row := UI.hbox(10)

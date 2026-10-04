@@ -9,7 +9,7 @@ Group=glint
 WorkingDirectory=/opt/glint
 # GLINT_FLAGS (Appwrite, min client version) is written by deploy.ps1.
 EnvironmentFile=-/opt/glint/glint.env
-ExecStart=/opt/glint/glint-server -addr :7777 -data /opt/glint/data -tls -invite-only $GLINT_FLAGS
+ExecStart=/opt/glint/glint-server -addr :7777 -data /opt/glint/data -tls $GLINT_FLAGS
 Restart=always
 RestartSec=3
 LimitNOFILE=65536

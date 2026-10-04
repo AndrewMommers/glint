@@ -134,3 +134,18 @@ func TestAccountsAndFriends(t *testing.T) {
 		t.Fatal("token should be invalid after logout")
 	}
 }
+
+func TestRegistrationLimitPerIP(t *testing.T) {
+	h := NewHub()
+	for i := 0; i < regsPerIP; i++ {
+		if !h.allowRegistration("203.0.113.5") {
+			t.Fatalf("registration %d refused", i+1)
+		}
+	}
+	if h.allowRegistration("203.0.113.5") {
+		t.Fatal("too many registrations allowed from one address")
+	}
+	if !h.allowRegistration("203.0.113.6") {
+		t.Fatal("another address was limited")
+	}
+}

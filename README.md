@@ -2,7 +2,7 @@
 
 # Glint
 
-> ### ▶ [Play Glint in your browser (closed beta)](https://glint.appwrite.network/play/)
+> ### ▶ [Play Glint in your browser](https://glint.appwrite.network/play/)
 > Glint is played on the website. There's nothing to install. This repo is the source code.
 
 A modern color-matching card game with a **Go** authoritative game server and a **Godot 4.6** client with a frosted-glass (glassmorphism) UI.
@@ -31,18 +31,13 @@ Requirements: [Go 1.22+](https://go.dev/dl/) and [Godot 4.6](https://godotengine
 
 On macOS/Linux, run `./build.sh` instead (it builds `client/bin/glint-server`).
 
-### Closed beta
+### The live server
 
-The beta server runs on a Vultr VPS (or on this PC). It's encrypted with a pinned self-signed certificate, registration needs an invite code, outdated builds are told to update, and testers can send feedback from inside the game.
+Glint runs on a Vultr VPS: the Go server, plus Caddy serving the browser build over HTTPS. Anyone can create an account (at most 3 new accounts per address per hour), outdated game copies are asked to reload, and players can send feedback from inside the game.
 
-- [`deploy/VPS.md`](deploy/VPS.md): setting up the VPS, then `deploy\deploy.cmd` to ship server builds and `deploy\server.cmd` for status, logs and invites
-
-See [`beta/HOSTING.md`](beta/HOSTING.md) for:
-
-- running the server on this PC with `beta\run-server.ps1`
-- managing invites with `beta\invites.ps1`
-- reading feedback with `beta\feedback.ps1`
-- shipping builds with `release.ps1`
+- [`deploy/VPS.md`](deploy/VPS.md): setting up the VPS, then `deploy\deploy.cmd` to ship server builds and `deploy\server.cmd` for status and logs
+- `beta\feedback.ps1` reads player feedback (also in Appwrite)
+- The invite system still exists (`glint-server -invite-only`, `deploy\server.cmd invites ...`) if registration ever needs closing again. The `beta\` folder keeps its name for the server's data and tools.
 
 ### Dedicated server
 
@@ -63,7 +58,7 @@ Release builds always connect to the official server baked into the build, so th
 ### Releasing (the browser version)
 
 ```powershell
-.\release.cmd -Version 0.9.0-beta.12 -Publish
+.\release.cmd -Version 1.0.1 -Publish
 ```
 
 This bumps the version, runs the server tests, exports the web build to `build\web` and deploys the server plus the game to the VPS (`deploy\deploy.cmd -Web`). Players play it on the website's **Play** page, which embeds the game from the VPS. Opened directly, the game redirects to the website, and only the website may embed it (Caddy sets `frame-ancestors`).

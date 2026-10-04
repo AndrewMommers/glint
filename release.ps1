@@ -36,7 +36,7 @@ $cfgText = @"
 [release]
 
 version="$Version"
-channel="beta"
+channel="release"
 download_url="$website/play/"
 notes="$notesEscaped"
 "@

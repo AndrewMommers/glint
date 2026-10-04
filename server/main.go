@@ -224,6 +224,10 @@ func (h *Hub) accountMsg(c *Client, m inMsg) bool {
 					return true
 				}
 			}
+			if !h.allowRegistration(c.ip) {
+				authErr("too many new accounts from your network, please try again later")
+				return true
+			}
 			token, _, err = a.Register(strings.TrimSpace(m.Username), m.Password)
 			if err == nil && h.invites != nil {
 				if err = h.invites.Consume(m.Invite, userKey(m.Username)); err != nil {
