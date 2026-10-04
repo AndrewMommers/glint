@@ -20,7 +20,7 @@ $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$') { throw "Version must look like 0.9.0-beta.1" }
 if ($Server -notmatch '^[^:\s]+:\d+$') { throw "Server must be host:port, e.g. yourname.duckdns.org:7777" }
-$website = (Get-Content (Join-Path $root "betappwrite.json") -Raw | ConvertFrom-Json).website
+$website = (Get-Content (Join-Path $root "beta\appwrite.json") -Raw | ConvertFrom-Json).website
 $downloadUrl = "$website/download/"
 
 # 1. Server binary + TLS certificate (created once, then reused forever).
@@ -103,7 +103,7 @@ Write-Host "  beta\VERSION = $Version -> restart .\beta\run-server.ps1 so older 
 if ($Publish) {
     if (-not $setup) { throw "publishing needs the installer (install Inno Setup)" }
     # Git's own bash (not WSL) runs the upload script.
-    $bash = Join-Path (Split-Path (Split-Path (Get-Command git).Source)) "binash.exe"
+    $bash = Join-Path (Split-Path (Split-Path (Get-Command git).Source)) "bin\bash.exe"
     & $bash (Join-Path $root "tools/publish_download.sh") $Version $setup $zip
     if ($LASTEXITCODE) { throw "upload to Appwrite failed" }
     git -C $root add website/release.json

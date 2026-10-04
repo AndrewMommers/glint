@@ -22,3 +22,4 @@ build/
 beta/server-data/
 dist/
 client/release.cfg
+beta/vps.json
