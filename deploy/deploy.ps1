@@ -28,9 +28,8 @@ if (-not $Server) {
 $target = "$User@$Server"
 $sshOpts = @("-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=15")
 
-function Invoke-Remote([string]$script) {
-    # Pipe the script to bash so quoting stays simple; strip Windows line endings.
-    ($script -replace "`r", "") | ssh @sshOpts $target "bash -s"
+function Invoke-Remote([string]$command) {
+    ssh @sshOpts $target $command
     if ($LASTEXITCODE) { throw "remote command failed (exit $LASTEXITCODE)" }
 }
 
@@ -56,7 +55,7 @@ $stage = Join-Path $env:TEMP "glint-deploy"
 Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null
 Copy-Item (Join-Path $root "build\glint-server-linux") (Join-Path $stage "glint-server")
-foreach ($f in "glint.service", "setup-vps.sh") {
+foreach ($f in "glint.service", "setup-vps.sh", "install.sh") {
     $text = (Get-Content (Join-Path $PSScriptRoot $f) -Raw) -replace "`r", ""
     [IO.File]::WriteAllText((Join-Path $stage $f), $text)
 }
@@ -96,26 +95,7 @@ if ($FirstTime) {
 }
 
 # 5. Install and restart.
-Invoke-Remote @'
-set -e
-cd /tmp/glint-deploy
-install -o root -g root -m 755 glint-server /opt/glint/glint-server
-install -o root -g glint -m 640 glint.env /opt/glint/glint.env
-install -m 644 glint.service /etc/systemd/system/glint.service
-if [ -d data ]; then
-  install -o glint -g glint -m 600 data/server.crt data/server.key /opt/glint/data/tls/
-  for f in appwrite.key invites.json; do
-    [ -f data/$f ] && install -o glint -g glint -m 600 data/$f /opt/glint/data/
-  done
-  echo "data uploaded"
-fi
-rm -rf /tmp/glint-deploy
-systemctl daemon-reload
-systemctl restart glint
-sleep 2
-systemctl is-active glint
-journalctl -u glint -n 8 --no-pager -o cat
-'@
+Invoke-Remote "bash /tmp/glint-deploy/install.sh"
 
 # 6. Check it's reachable from here.
 $tcp = New-Object Net.Sockets.TcpClient

@@ -17,6 +17,13 @@ ufw allow OpenSSH
 ufw allow 7777/tcp comment "Glint"
 ufw --force enable
 
+echo "== SSH: keys only"
+# Only once a key is installed (we're logged in with it), so this can't lock you out.
+if [ -s /root/.ssh/authorized_keys ]; then
+  printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin prohibit-password\n' > /etc/ssh/sshd_config.d/10-glint.conf
+  systemctl reload ssh 2>/dev/null || systemctl reload sshd
+fi
+
 echo "== service user and folders"
 id glint >/dev/null 2>&1 || useradd --system --home /opt/glint --shell /usr/sbin/nologin glint
 install -d -o glint -g glint -m 750 /opt/glint
