@@ -1,13 +1,13 @@
 {
-  "version": "0.9.0-beta.8",
+  "version": "0.9.0-beta.9",
   "date": "2026-10-04",
-  "setup": { "name": "Glint-Setup-0.9.0-beta.8.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/setup-latest/download?project=6ac0ded2003c01a55e80", "bytes": 34276031, "sha256": "6f59d964a2242973c35490e417f0ea987a3c0d9c5f5c6170d80d32920edec256" },
-  "zip": { "name": "Glint-0.9.0-beta.8-windows.zip", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/zip-latest/download?project=6ac0ded2003c01a55e80", "bytes": 44095749, "sha256": "f8086ebd2b55e774bee6956a275e696c78a86ede955306d9e04e38e81fa5ed60" },
+  "setup": { "name": "Glint-Setup-0.9.0-beta.9.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/setup-latest/download?project=6ac0ded2003c01a55e80", "bytes": 34292413, "sha256": "90979648554b128b00a2b084d20f7c3044d434e0e9cdcd8870ea0f17bfbec4cc" },
+  "zip": { "name": "Glint-0.9.0-beta.9-windows.zip", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/zip-latest/download?project=6ac0ded2003c01a55e80", "bytes": 44112081, "sha256": "b03f2cdecaef454c2b0176dc92b334cb3b1b6957b7ee771bd92f797c3a9d7956" },
   "patch": {
     "exe_sha256": "c93e3677817bf400ecc054fac0da0f9848f6d34fe675cab7cc3b45c31f07fee2",
     "files": [
-      { "name": "Glint.pck", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/pck-latest/download?project=6ac0ded2003c01a55e80", "bytes": 2383088, "sha256": "93a663022aa0023469677d3ad0c9da8830c1b5366eea5bbb5dd56975798ac020" },
-      { "name": "glint-server.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/server-latest/download?project=6ac0ded2003c01a55e80", "bytes": 10624000, "sha256": "1c27818c443b1fc1b75df1fccc5fa1b6d0495975873b03af742292e692c29a2c" }
+      { "name": "Glint.pck", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/pck-latest/download?project=6ac0ded2003c01a55e80", "bytes": 2399808, "sha256": "dc1ff8f57357c8e8edaaaf706fc42760e0b7a7462e3cb148105ee69610652c6f" },
+      { "name": "glint-server.exe", "url": "https://syd.cloud.appwrite.io/v1/storage/buckets/downloads/files/server-latest/download?project=6ac0ded2003c01a55e80", "bytes": 10624000, "sha256": "e049fc0721cc2b90c822c2ffcae444de3ebda9edf2de8e18d0e1e3f0a0a2105f" }
     ]
   }
 }
