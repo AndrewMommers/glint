@@ -46,7 +46,8 @@ func _ready() -> void:
 
 	var cf := ConfigFile.new()
 	if cf.load(PATH) == OK:
-		addr = cf.get_value("account", "server", addr)
+		if not Release.is_release():  # dev builds may point at a test server
+			addr = cf.get_value("account", "server", addr)
 		username = cf.get_value("account", "username", "")
 		token = cf.get_value("account", "token", "")
 	if token != "" or Release.is_release():

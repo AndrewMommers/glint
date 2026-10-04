@@ -173,7 +173,7 @@ func _debug_args() -> void:
 			if what == "quick":
 				_quick.call_deferred()
 			elif what == "create":
-				_create_remote.call_deferred()
+				_create_lobby.call_deferred()
 			elif what.begins_with("join:"):
 				_join.call_deferred(what.get_slice(":", 1))
 		elif a.begins_with("--stage="):
@@ -268,7 +268,8 @@ func _load_config() -> void:
 	var cf := ConfigFile.new()
 	if cf.load(CONFIG_PATH) == OK:
 		player_name = cf.get_value("player", "name", "")
-		server_addr = cf.get_value("net", "server", Release.server())
+		if not Release.is_release():  # release builds always use the official server
+			server_addr = cf.get_value("net", "server", Release.server())
 		var saved = cf.get_value("game", "setup", null)
 		if saved is Dictionary:
 			setup.merge(saved, true)
@@ -518,7 +519,7 @@ func show_menu() -> void:
 
 	if Online.is_signed_in():
 		var acc := UI.button("☁  Signed in as %s" % Online.username, show_account)
-		acc.tooltip_text = "Progress syncs to your account on %s" % Online.addr
+		acc.tooltip_text = "Your progress syncs to your account"
 		col.add_child(acc)
 	else:
 		var acc := UI.button("Sign in / create account" if Online.status != "connecting" else "Connecting…", show_account)
@@ -1114,9 +1115,10 @@ func _connecting(text: String) -> void:
 func show_multiplayer() -> void:
 	_clear()
 	_decor()
-	var p := _card(640)
+	_screen = "multi"
+	var p := _card(760)
 	var col := UI.vbox(16)
-	col.add_child(_header("Multiplayer", "Jump into a quick game, host a table on this PC, or connect to any Glint server.", show_menu))
+	col.add_child(_header("Multiplayer", "Play with friends or anyone online.", show_menu))
 
 	var quick := UI.button("⚡  Quick Match", _quick, true)
 	quick.custom_minimum_size = Vector2(0, 64)
@@ -1124,40 +1126,60 @@ func show_multiplayer() -> void:
 	quick.tooltip_text = "Join a 4-player table with other players. Bots fill any empty seats."
 	col.add_child(quick)
 
-	col.add_child(UI.section("Server"))
-	var row := UI.hbox(10)
-	var addr := UI.line_edit(server_addr, "host or host:port")
-	addr.text_changed.connect(func(t: String) -> void:
-		server_addr = t.strip_edges()
-		_save_config())
-	row.add_child(addr)
-	row.add_child(UI.button("Browse rooms", _browse, false, 160))
-	col.add_child(row)
+	var halves := UI.hbox(24)
+	var create := UI.vbox(10)
+	create.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	create.add_child(UI.section("Create a lobby"))
+	var vis_note := UI.label("", 13, 500, UI.MUTED)
+	vis_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var set_note := func() -> void:
+		vis_note.text = "Listed below for anyone to join." if setup.get("lobby_public", true) \
+			else "Hidden. Share the code with your friends."
+	set_note.call()
+	create.add_child(UI.segmented([["Public", true], ["Private", false]], setup.get("lobby_public", true), func(v: bool) -> void:
+		setup.lobby_public = v
+		_save_config()
+		set_note.call()))
+	create.add_child(vis_note)
+	create.add_child(UI.button("Create lobby", _create_lobby, true))
+	halves.add_child(create)
 
-	var host_btn := UI.button("Host on this PC", _host_local, true)
-	host_btn.tooltip_text = "Starts a server on port %d and creates a room" % Net.DEFAULT_PORT
-	var join_row := UI.hbox(10)
-	var code := UI.line_edit("", "Room code", 4)
-	code.custom_minimum_size.x = 160
-	code.size_flags_horizontal = Control.SIZE_FILL
-	join_row.add_child(code)
-	join_row.add_child(UI.button("Join", func() -> void: _join(code.text), false, 120))
+	var join := UI.vbox(10)
+	join.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	join.add_child(UI.section("Join with a code"))
+	var code := UI.line_edit("", "4-letter code", 4)
 	code.text_submitted.connect(func(t: String) -> void: _join(t))
-	join_row.add_child(UI.spacer(0, 0, true))
-	join_row.add_child(UI.button("Create room on server", _create_remote, false))
-	col.add_child(host_btn)
-	col.add_child(join_row)
+	join.add_child(code)
+	join.add_child(UI.label("Ask the host for their lobby code.", 13, 500, UI.MUTED))
+	join.add_child(UI.button("Join", func() -> void: _join(code.text)))
+	halves.add_child(join)
+	col.add_child(halves)
 
-	col.add_child(UI.section("Open rooms"))
+	var head := UI.hbox(10)
+	var sec := UI.section("Open lobbies")
+	sec.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(sec)
+	head.add_child(UI.button("Refresh", _browse, false, 110))
+	col.add_child(head)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0, 180)
+	scroll.custom_minimum_size = Vector2(0, 200)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_rooms_box = UI.vbox(8)
 	_rooms_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_rooms_box.add_child(UI.label("Press “Browse rooms” to look for open tables.", 15, 500, UI.MUTED))
+	_rooms_box.add_child(UI.label("Looking for open lobbies…", 15, 500, UI.MUTED))
 	scroll.add_child(_rooms_box)
 	col.add_child(scroll)
 	p.add_child(col)
+
+	# Keep the list fresh while this screen is open.
+	_browse()
+	var t := Timer.new()
+	t.wait_time = 6.0
+	t.autostart = true
+	t.timeout.connect(func() -> void:
+		if _screen == "multi" and Net.is_online():
+			Net.send({"t": "list"}))
+	p.add_child(t)
 
 
 func _parse_addr() -> Array:
@@ -1170,7 +1192,7 @@ func _parse_addr() -> Array:
 	return [host, port]
 
 
-## Connects to the configured server (if not already) and then runs then.
+## Connects to the game server (if not already) and then runs then.
 func _with_server(then: Callable) -> void:
 	var a := _parse_addr()
 	if Net.is_online() and Net.connected_to(a[0], a[1]):
@@ -1178,7 +1200,12 @@ func _with_server(then: Callable) -> void:
 		return
 	singleplayer = false
 	_on_connected = then
-	Net.connect_to(a[0], a[1], 1)
+	var retries := 1
+	if not Release.is_release() and Release.is_local(a[0]):
+		# Dev builds: run a server on this PC if there isn't one.
+		Net.start_local_server(int(a[1]), false)
+		retries = 15
+	Net.connect_to(a[0], a[1], retries)
 
 
 func _quick() -> void:
@@ -1204,30 +1231,11 @@ func _browse() -> void:
 	_with_server(func() -> void: Net.send({"t": "list"}))
 
 
-func _mp_settings() -> Dictionary:
+func _create_lobby() -> void:
 	var s: Dictionary = setup.settings.duplicate(true)
-	s.public = true
+	s.public = setup.get("lobby_public", true)
 	if int(s.turnTime) == 0:
 		s.turnTime = 30
-	return s
-
-
-func _host_local() -> void:
-	var err := Net.start_local_server(Net.DEFAULT_PORT, true)
-	if err != "":
-		toast(err, true)
-		return
-	server_addr = "127.0.0.1"
-	_save_config()
-	var s := _mp_settings()
-	_on_connected = func() -> void:
-		Net.send({"t": "create", "name": _name(), "bots": 0, "settings": s})
-	_connecting("Starting server…")
-	Net.connect_to("127.0.0.1", Net.DEFAULT_PORT, 15)
-
-
-func _create_remote() -> void:
-	var s := _mp_settings()
 	_with_server(func() -> void: Net.send({"t": "create", "name": _name(), "bots": 0, "settings": s}))
 
 
@@ -1245,7 +1253,7 @@ func _show_rooms(rooms: Array) -> void:
 	for c in _rooms_box.get_children():
 		c.queue_free()
 	if rooms.is_empty():
-		_rooms_box.add_child(UI.label("No open rooms right now — host one!", 15, 500, UI.MUTED))
+		_rooms_box.add_child(UI.label("No open lobbies right now. Create one, or try Quick Match!", 15, 500, UI.MUTED))
 	for r in rooms:
 		var row := UI.hbox(12)
 		var l := UI.label("Quick Match" if r.get("quick", false) else "%s's table" % r.host, 17, 650)
@@ -1296,10 +1304,19 @@ func show_lobby(st: Dictionary) -> void:
 	code_btn.tooltip_text = "Click to copy"
 	head.add_child(code_btn)
 	col.add_child(head)
-	if is_host and not singleplayer and not quick:
-		var ips := Net.local_ips()
-		if not ips.is_empty() and server_addr.begins_with("127.0.0.1"):
-			col.add_child(UI.label("Friends on your network connect to:  %s" % "  ·  ".join(ips), 14, 500, UI.MUTED))
+	if not singleplayer and not quick:
+		var public: bool = st.settings.get("public", true)
+		var vis := UI.hbox(12)
+		if is_host:
+			vis.add_child(UI.segmented([["Public", true], ["Private", false]], public, func(v: bool) -> void:
+				setup.lobby_public = v
+				_save_config()
+				Net.send({"t": "settings", "settings": {"public": v}})))
+		var vl := UI.label("Public: anyone can join from the lobby list." if public else "Private: only people with the code can join.", 14, 500, UI.MUTED)
+		vl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		vl.size_flags_vertical = Control.SIZE_FILL
+		vis.add_child(vl)
+		col.add_child(vis)
 
 	col.add_child(UI.section("Players  %d / %d" % [st.players.size(), st.settings.get("maxPlayers", 8)]))
 	var grid := GridContainer.new()
@@ -1697,7 +1714,7 @@ func _options_body() -> HBoxContainer:
 	right.add_child(UI.toggle("Reduce motion", "No screen shake, confetti or floating menu cards.", Settings.v("reduce_motion"), setv.call("reduce_motion")))
 
 	right.add_child(UI.section("Account & data"))
-	var acct := "Signed in as %s on %s" % [Online.username, Online.addr] if Online.is_signed_in() else "Not signed in — progress is saved on this PC only."
+	var acct := "Signed in as %s" % Online.username if Online.is_signed_in() else "Not signed in — progress is saved on this PC only."
 	var al := UI.label(acct, 14, 500, UI.MUTED)
 	al.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	right.add_child(al)
@@ -1769,7 +1786,6 @@ func show_account() -> void:
 		var who := UI.vbox(4)
 		who.alignment = BoxContainer.ALIGNMENT_CENTER
 		who.add_child(UI.label(Online.username, 26, 800))
-		who.add_child(UI.label("Signed in on %s" % Online.addr, 14, 500, UI.MUTED))
 		who.add_child(UI.label("Level %d  ·  progress syncs automatically" % Profile.level(), 14, 600, UI.ACCENT.lightened(0.4)))
 		head.add_child(who)
 		col.add_child(head)
@@ -1787,9 +1803,6 @@ func show_account() -> void:
 	col.add_child(UI.segmented([["Sign in", "login"], ["Create account", "register"]], _account_mode, func(v: String) -> void:
 		_account_mode = v
 		show_account()))
-	col.add_child(UI.section("Server"))
-	var server := UI.line_edit(Online.addr, "host:port (the multiplayer server)")
-	col.add_child(server)
 	col.add_child(UI.section("Username"))
 	var user := UI.line_edit(Online.username, "3–16 letters, numbers or _", 16)
 	col.add_child(user)
@@ -1808,7 +1821,7 @@ func show_account() -> void:
 		col.add_child(invite)
 	var status := ""
 	if Online.status == "connecting":
-		status = "Connecting to %s…" % Online.addr
+		status = "Connecting…"
 	elif Online.last_error != "":
 		status = Online.last_error
 	if status != "":
@@ -1820,13 +1833,13 @@ func show_account() -> void:
 		if user.text.strip_edges().length() < 3 or pw.text.length() < 8:
 			toast("Enter a username (3+) and password (8+)", true)
 			return
-		Online.sign_in(server.text.strip_edges(), user.text, pw.text, _account_mode == "register", invite.text if invite else "")
+		Online.sign_in(Online.addr, user.text, pw.text, _account_mode == "register", invite.text if invite else "")
 		show_account()
 	var go := UI.button("Create account" if _account_mode == "register" else "Sign in", submit, true)
 	go.custom_minimum_size.y = 52
 	col.add_child(go)
 	pw.text_submitted.connect(func(_t: String) -> void: submit.call())
-	var note := UI.label("Accounts live on the server you choose. To be friends, everyone signs in to the same server — e.g. the PC hosting multiplayer, or a dedicated server.", 13, 500, UI.MUTED)
+	var note := UI.label("Your account keeps your level and unlocks safe, lets you add friends and invite them to your lobby.", 13, 500, UI.MUTED)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(note)
 	p.add_child(col)
@@ -1901,10 +1914,7 @@ func show_friends() -> void:
 		var fname: String = f.name
 		if f.get("room", "") != "":
 			var code: String = f.room
-			row.add_child(UI.button("Join", func() -> void:
-				server_addr = Online.addr
-				_save_config()
-				_join(code), true, 90))
+			row.add_child(UI.button("Join", func() -> void: _join(code), true, 90))
 		var x := UI.button("✕", func() -> void: _confirm_remove_friend(fname))
 		x.custom_minimum_size = Vector2(40, 40)
 		x.tooltip_text = "Remove friend"
@@ -1980,8 +1990,6 @@ func _invite_dialog() -> void:
 func _on_invited(from: String, code: String) -> void:
 	Audio.play("notify")
 	toast_action("%s invited you to table %s" % [from, code], "Join", func() -> void:
-		server_addr = Online.addr
-		_save_config()
 		if singleplayer:
 			Net.close()
 			Net.stop_local_servers()

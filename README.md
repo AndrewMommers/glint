@@ -52,7 +52,7 @@ cd server
 go run . -addr :7777
 ```
 
-Players open **Multiplayer**, enter `your-host:7777`, and then create or join a room, or press **Quick Match**. *Host on this PC* does the same thing on the local machine (port 7777, all interfaces). The lobby shows your LAN IPs so friends know where to connect.
+Release builds always connect to the official server baked into the build, so there's no address to type. In **Multiplayer**, players can press **Quick Match**, create a **public** lobby (listed for anyone) or a **private** one (code only), join with a 4-letter code, or pick from the open lobbies. Dev builds connect to `127.0.0.1:7777` and start a local server if none is running. Use `--connect=host:port` to test against another server.
 
 ### Online play
 
