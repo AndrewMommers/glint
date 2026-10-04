@@ -88,6 +88,7 @@ func _ready() -> void:
 	show_menu()
 	_debug_args()
 	add_child(updater)
+	_announce_update()
 	# Look for an update once the boot screen is gone.
 	get_tree().create_timer(3.0).timeout.connect(func() -> void: _check_updates(false))
 	if Net.has_rejoinable_seat():
@@ -160,6 +161,8 @@ func _debug_args() -> void:
 			var fb_text := a.get_slice("=", 1)
 			get_tree().create_timer(2.0).timeout.connect(func() -> void:
 				Online.send_feedback("bug", fb_text, _feedback_info(), _log_tail()))
+		elif a == "--whats-new":
+			_whats_new.call_deferred()
 		elif a == "--auto-update":
 			set_meta("auto_update", true)  # press "Update now" by itself (testing)
 		elif a.begins_with("--connect="):
@@ -2038,6 +2041,70 @@ func _show_outdated(msg: Dictionary) -> void:
 
 
 # ---------------------------------------------------------------- updates
+
+## After the game was updated (in-game or with the installer), say so once
+## and offer the release notes.
+func _announce_update() -> void:
+	if not Release.is_release():
+		return
+	var cf := ConfigFile.new()
+	cf.load("user://version.cfg")
+	var last: String = cf.get_value("version", "last", "")
+	var now := Release.version()
+	if last == now:
+		return
+	cf.set_value("version", "last", now)
+	cf.save("user://version.cfg")
+	if last == "":  # first launch ever (or first with this feature): nothing to announce
+		return
+	get_tree().create_timer(3.0).timeout.connect(func() -> void:
+		Audio.play("notify")
+		if Release.notes() != "":
+			toast_action("Glint updated to v%s" % now, "What's new", _whats_new)
+		else:
+			toast("Glint updated to v%s" % now))
+
+
+func _whats_new() -> void:
+	var body := UI.vbox(16)
+	var r := RichTextLabel.new()
+	r.bbcode_enabled = true
+	r.fit_content = true
+	r.scroll_active = false
+	r.custom_minimum_size = Vector2(520, 0)
+	r.add_theme_font_override("normal_font", UI.font(500))
+	r.add_theme_font_override("bold_font", UI.font(800))
+	r.add_theme_font_override("italics_font", UI.font(500))
+	r.add_theme_font_size_override("normal_font_size", 16)
+	r.add_theme_font_size_override("bold_font_size", 16)
+	r.add_theme_font_size_override("italics_font_size", 16)
+	r.text = _md_to_bbcode(Release.notes())
+	body.add_child(r)
+	var row := UI.hbox(10)
+	row.add_child(UI.spacer(0, 0, true))
+	row.add_child(UI.button("Nice!", _close_dialog, true, 140))
+	body.add_child(row)
+	_dialog("What's new in v%s" % Release.version(), body)
+
+
+## Just enough Markdown for release notes: headings, bullets, bold, italics, code.
+static func _md_to_bbcode(md: String) -> String:
+	var out := PackedStringArray()
+	var bold := RegEx.create_from_string("\\*\\*(.+?)\\*\\*")
+	var ital := RegEx.create_from_string("\\*(.+?)\\*")
+	var code := RegEx.create_from_string("`(.+?)`")
+	for line in md.split("\n"):
+		line = line.strip_edges().replace("[", "[lb]")
+		if line.begins_with("## ") or line.begins_with("# "):
+			continue  # the dialog title already says which version
+		var bullet := line.begins_with("- ")
+		if bullet:
+			line = line.substr(2)
+		line = bold.sub(line, "[b]$1[/b]", true)
+		line = ital.sub(line, "[i]$1[/i]", true)
+		line = code.sub(line, "[b]$1[/b]", true)
+		out.append(("  •  " + line) if bullet else line)
+	return "\n".join(out).strip_edges()
 
 ## Asks the website for a newer version. Shows the update dialog if there is
 ## one; otherwise calls none_found (manual checks say "up to date").

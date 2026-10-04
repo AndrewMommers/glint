@@ -37,6 +37,12 @@ $certPem = (Get-Content (Join-Path $data "tls\server.crt") -Raw).Trim()
 # 2. Bake the release config into the game and export.
 $cfgPath = Join-Path $root "client\release.cfg"
 $certEscaped = $certPem -replace "`r", "" -replace "`n", "\n"
+# Release notes travel inside the build, for the "What's new" dialog after an update.
+$notesFile = Join-Path $root "beta\notes\$Version.md"
+$notesEscaped = ""
+if (Test-Path $notesFile) {
+    $notesEscaped = (Get-Content $notesFile -Raw) -replace "\\", "\\" -replace '"', '\"' -replace "`r", "" -replace "`n", "\n"
+}
 @"
 [release]
 
@@ -46,6 +52,7 @@ server="$Server"
 download_url="$downloadUrl"
 update_url="$website/release.json"
 cert="$certEscaped"
+notes="$notesEscaped"
 "@ | Set-Content $cfgPath -Encoding utf8
 try {
     & (Join-Path $root "export.ps1") -Godot $Godot

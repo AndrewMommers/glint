@@ -35,6 +35,11 @@ static func server() -> String:
 	return _c().get_value("release", "server", "127.0.0.1:7777")
 
 
+## This version's release notes (Markdown), shown after an update.
+static func notes() -> String:
+	return _c().get_value("release", "notes", "")
+
+
 static func download_url() -> String:
 	return _c().get_value("release", "download_url", "https://glint.appwrite.network/download/")
 
